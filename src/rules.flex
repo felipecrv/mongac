@@ -57,46 +57,46 @@ WHITE      [ \n\r\t]+
 <INITIAL>{
 "/*"    BEGIN(MG_COMMENT);
 "\""    %{
-          BEGIN(MG_STRING);
-          mg_str_buf = &mg_ch_buffer[mg_ch_buffer_next_slot];
-          mg_str_buf[0] = '"';
-          mg_str_buf_pos = 1;
+           BEGIN(MG_STRING);
+           mg_str_buf = &mg_ch_buffer[mg_ch_buffer_next_slot];
+           mg_str_buf[0] = '"';
+           mg_str_buf_pos = 1;
         %}
 
 if      mg_dump_token("IF", NULL);
 else    mg_dump_token("ELSE", NULL);
-while          mg_dump_token("WHILE", NULL);
-new      mg_dump_token("NEW", NULL);
-return      mg_dump_token("RETURN", NULL);
-void      mg_dump_token("VOID", NULL);
-int       mg_dump_token("INT", NULL);
-char      mg_dump_token("CHAR", NULL);
-float     mg_dump_token("FLOAT", NULL);
-{LNUM}         mg_dump_token("NUMINT", yytext);
-{DNUM}         mg_dump_token("NUMFLOAT", yytext);
-{ID}      mg_dump_token("ID", yytext);
+while   mg_dump_token("WHILE", NULL);
+new     mg_dump_token("NEW", NULL);
+return  mg_dump_token("RETURN", NULL);
+void    mg_dump_token("VOID", NULL);
+int     mg_dump_token("INT", NULL);
+char    mg_dump_token("CHAR", NULL);
+float   mg_dump_token("FLOAT", NULL);
+{LNUM}  mg_dump_token("NUMINT", yytext);
+{DNUM}  mg_dump_token("NUMFLOAT", yytext);
+{ID}    mg_dump_token("ID", yytext);
 "("     mg_dump_token("APAR", NULL);
 ")"     mg_dump_token("FPAR", NULL);
-"["       mg_dump_token("ACOL", NULL);
-"]"       mg_dump_token("FCOL", NULL);
-","       mg_dump_token("VIRG", NULL);
-";"       mg_dump_token("PTVIRG", NULL);
-"="         mg_dump_token("ATRIB", NULL);
-"=="       mg_dump_token("IGUAL", NULL);
-"+"      mg_dump_token("SOMA", NULL);
-"-"      mg_dump_token("SUB", NULL);
-"*"      mg_dump_token("MULT", NULL);
-"/"      mg_dump_token("DIV", NULL);
-">"      mg_dump_token("MAIORQ", NULL);
-"<"      mg_dump_token("MENORQ", NULL);
-">="     mg_dump_token("MAIORIG", NULL);
-"<="     mg_dump_token("MENORIG", NULL);
-"!"      mg_dump_token("NAO", NULL);
-"||"     mg_dump_token("OU", NULL);
-"&&"     mg_dump_token("E", NULL);
-"{"        mg_dump_token("ACHAVE", NULL);
-"}"           mg_dump_token("FCHAVE", NULL);
-{WHITE}  printf("%s", yytext);
+"["     mg_dump_token("ACOL", NULL);
+"]"     mg_dump_token("FCOL", NULL);
+","     mg_dump_token("VIRG", NULL);
+";"     mg_dump_token("PTVIRG", NULL);
+"="     mg_dump_token("ATRIB", NULL);
+"=="    mg_dump_token("IGUAL", NULL);
+"+"     mg_dump_token("SOMA", NULL);
+"-"     mg_dump_token("SUB", NULL);
+"*"     mg_dump_token("MULT", NULL);
+"/"     mg_dump_token("DIV", NULL);
+">"     mg_dump_token("MAIORQ", NULL);
+"<"     mg_dump_token("MENORQ", NULL);
+">="    mg_dump_token("MAIORIG", NULL);
+"<="    mg_dump_token("MENORIG", NULL);
+"!"     mg_dump_token("NAO", NULL);
+"||"    mg_dump_token("OU", NULL);
+"&&"    mg_dump_token("E", NULL);
+"{"     mg_dump_token("ACHAVE", NULL);
+"}"     mg_dump_token("FCHAVE", NULL);
+{WHITE} printf("%s", yytext);
 .       mg_error("unexpected char");
 }
 
@@ -109,21 +109,21 @@ float     mg_dump_token("FLOAT", NULL);
 }
 
 <MG_STRING>{
-(?s:\\.)   %{
-                mg_str_buf[mg_str_buf_pos++] = yytext[0];
-                mg_str_buf[mg_str_buf_pos++] = yytext[1];
-            %}
-[^\\\"\n\r]+  %{
-                memcpy(&mg_str_buf[mg_str_buf_pos], yytext, strlen(yytext));
-                mg_str_buf_pos += strlen(yytext);
+(?s:\\.)      %{
+                  mg_str_buf[mg_str_buf_pos++] = yytext[0];
+                  mg_str_buf[mg_str_buf_pos++] = yytext[1];
               %}
-{NEWLINE}   mg_error("missing \""); BEGIN(INITIAL);
-\"          %{
-                mg_str_buf[mg_str_buf_pos++] = '"';
-                mg_dump_token("STRING", mg_str_buf);
-                mg_ch_buffer_next_slot += mg_str_buf_pos;
-                BEGIN(INITIAL);
-            %}
+[^\\\"\n\r]+  %{
+                  memcpy(&mg_str_buf[mg_str_buf_pos], yytext, strlen(yytext));
+                  mg_str_buf_pos += strlen(yytext);
+              %}
+{NEWLINE}     mg_error("missing \""); BEGIN(INITIAL);
+\"            %{
+                  mg_str_buf[mg_str_buf_pos++] = '"';
+                  mg_dump_token("STRING", mg_str_buf);
+                  mg_ch_buffer_next_slot += mg_str_buf_pos;
+                  BEGIN(INITIAL);
+              %}
 }
 
 %%
