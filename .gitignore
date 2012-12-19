@@ -1,3 +1,5 @@
 *.yy.c
 *.swp
 *.swo
+tags
+mongascan
