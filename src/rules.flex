@@ -5,24 +5,27 @@
 %top{
 #include <stdio.h>
 #include <stdint.h>
+#include <stdarg.h>
 }
 
 %{
-extern int yywrap(void) {
-    return 1;
-}
+extern int yywrap(void) { return 1; }
 
-int mg_i, mg_scan_errno = 0;
+int mg_scan_errno = 0; // error code
 char *mg_ch_buffer, *mg_str_buf;
-int mg_ch_buffer_next_slot = 0, mg_str_buf_pos = 0;
+int mg_ch_buffer_next_slot = 0, mg_str_buf_pos = 0, mg_i;
+char mg_unexpected_char[3];
 
-void mg_debug(const char* msg) {
-#ifdef DEBUG
-    fputs(msg, stderr);
-#endif
+static void mg_error(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    mg_scan_errno = 1;
+    fprintf(stderr, "error:%d: ", yylineno);
+    vfprintf(stderr, fmt, ap);
+    putchar('\n');
 }
 
-void mg_dump_token(const char* token_name, const char* token_value) {
+static void mg_dump_token(const char* token_name, const char* token_value) {
     if (token_value) {
         printf("%s(%s) ", token_name, token_value);
     } else {
@@ -30,14 +33,35 @@ void mg_dump_token(const char* token_name, const char* token_value) {
     }
 }
 
-void mg_error(char *msg) {
-    fprintf(stderr, "error:%d: %s\n", yylineno, msg);
-    mg_scan_errno = 1;
+static void mg_debug(const char* fmt, ...) {
+#ifdef DEBUG
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+#endif
 }
 
-void mg_fatal_error(char *msg) {
-    mg_error(msg);
-    exit(mg_scan_errno);
+static void mg_char_to_printable(char c, char* print) {
+    switch (c) {
+    case '\n':
+        print[0] = '\\';
+        print[1] = 'n';
+        print[2] = '\0';
+        break;
+    case '\t':
+        print[0] = '\\';
+        print[1] = 't';
+        print[2] = '\0';
+        break;
+    case '\r':
+        print[0] = '\\';
+        print[1] = 'r';
+        print[2] = '\0';
+        break;
+    default:
+        print[0] = c;
+        print[1] = '\0';
+    }
 }
 
 %}
@@ -55,9 +79,10 @@ WHITE      [ \n\r\t]+
 %%
 
 <INITIAL>{
-"/*"    BEGIN(MG_COMMENT);
+"/*"    BEGIN(MG_COMMENT); mg_debug("BEGIN(MG_COMMENT)\n");
 "\""    %{
            BEGIN(MG_STRING);
+           mg_debug("BEGIN(MG_STRING)\n");
            mg_str_buf = &mg_ch_buffer[mg_ch_buffer_next_slot];
            mg_str_buf[0] = '"';
            mg_str_buf_pos = 1;
@@ -72,6 +97,7 @@ void    mg_dump_token("VOID", NULL);
 int     mg_dump_token("INT", NULL);
 char    mg_dump_token("CHAR", NULL);
 float   mg_dump_token("FLOAT", NULL);
+{HNUM}  mg_dump_token("NUMINT", yytext);
 {LNUM}  mg_dump_token("NUMINT", yytext);
 {DNUM}  mg_dump_token("NUMFLOAT", yytext);
 {ID}    mg_dump_token("ID", yytext);
@@ -96,15 +122,18 @@ float   mg_dump_token("FLOAT", NULL);
 "&&"    mg_dump_token("E", NULL);
 "{"     mg_dump_token("ACHAVE", NULL);
 "}"     mg_dump_token("FCHAVE", NULL);
-{WHITE} printf("%s", yytext);
-.       mg_error("unexpected char");
+{WHITE} printf("%s", yytext); // output the spaces
+.       %{
+            mg_char_to_printable(yytext[0], (char *) mg_unexpected_char);
+            mg_error("unexpected char '%s'", mg_unexpected_char);
+        %}
 }
 
 <MG_COMMENT>{
 "*/"      BEGIN(INITIAL);
 [^*\n]+   // eat comments in chunks
 "*"       // eat the lone star
-\n        puts(""); // eat newlines
+\n        putchar('\n'); // eat newlines and output them
 <<EOF>>   mg_error("unterminated_comment"); yyterminate();
 }
 
@@ -117,7 +146,7 @@ float   mg_dump_token("FLOAT", NULL);
                   memcpy(&mg_str_buf[mg_str_buf_pos], yytext, strlen(yytext));
                   mg_str_buf_pos += strlen(yytext);
               %}
-{NEWLINE}     mg_error("missing \""); BEGIN(INITIAL);
+{NEWLINE}     mg_error("missing \" before newline"); BEGIN(INITIAL);
 \"            %{
                   mg_str_buf[mg_str_buf_pos++] = '"';
                   mg_dump_token("STRING", mg_str_buf);
