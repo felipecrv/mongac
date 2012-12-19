@@ -1,0 +1,11 @@
+int a;
+
+/* a single line comment */
+int func(float b) {
+  /* a multiline
+   * comment */
+  if (a == b) {
+    return 22;
+  }
+  return 33;
+}

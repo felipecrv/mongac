@@ -1,0 +1,25 @@
+int a;
+char b;
+/* comment */
+void func(int a) {
+    int b;
+    if (a) {
+        return;
+    } else b = a;
+    while (a == b || !(a > b) && 1 < 2 ) {
+        return new char[5];
+    }
+    /* multiline
+     * comment */
+    float f;
+    f = 1.;
+    f = 10.67, b = 0xdeadBEEF;
+    a = b, b = a;
+    a = a + b * a / b - 1;
+    int z = a <= b || a >= b;
+    char[] s;
+    s = "Felipe";
+    s = "foo\"bar";
+    s = "multiline\
+string\"\t\n";
+}
