@@ -59,7 +59,8 @@ WHITE      [ \n\r\t]+
 "\""    %{
           BEGIN(MG_STRING);
           mg_str_buf = &mg_ch_buffer[mg_ch_buffer_next_slot];
-          mg_str_buf_pos = 0;
+          mg_str_buf[0] = '"';
+          mg_str_buf_pos = 1;
         %}
 
 if      mg_dump_token("IF", NULL);
@@ -112,12 +113,13 @@ float     mg_dump_token("FLOAT", NULL);
                 mg_str_buf[mg_str_buf_pos++] = yytext[0];
                 mg_str_buf[mg_str_buf_pos++] = yytext[1];
             %}
-[^\\\"]+    %{
+[^\\\"\n\r]+  %{
                 memcpy(&mg_str_buf[mg_str_buf_pos], yytext, strlen(yytext));
                 mg_str_buf_pos += strlen(yytext);
-            %}
+              %}
 {NEWLINE}   mg_error("missing \""); BEGIN(INITIAL);
 \"          %{
+                mg_str_buf[mg_str_buf_pos++] = '"';
                 mg_dump_token("STRING", mg_str_buf);
                 mg_ch_buffer_next_slot += mg_str_buf_pos;
                 BEGIN(INITIAL);
