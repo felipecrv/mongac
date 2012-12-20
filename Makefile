@@ -1,5 +1,5 @@
 all:
-	flex src/rules.flex
+	flex src/monga.l
 	#gcc -lfl lex.yy.c -o mongascan
 	#gcc -DDEBUG lex.yy.c -o mongascan
 	gcc lex.yy.c -o mongascan
