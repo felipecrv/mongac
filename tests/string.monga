@@ -4,7 +4,7 @@ char[] func() {
     s = "A simple string";
     s = "A simple string with a \" inside it";
     s = "first string in the line"; s = "second string in the line";
-    s = "first string in the line with a quote\""; s = "second in the line. multiline\
+    s = "first string in the line with a quote\""; s = "second in the line. multiline \
 string";
     s = "string with tab \t in it";
 

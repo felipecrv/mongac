@@ -17,8 +17,8 @@ VOID ID(func) APAR INT ID(a) FPAR ACHAVE
     ID(a) ATRIB ID(a) SOMA ID(b) MULT ID(a) DIV ID(b) SUB NUMINT(1) PTVIRG
     INT ID(z) ATRIB ID(a) MENORIG ID(b) OU ID(a) MAIORIG ID(b) PTVIRG
     CHAR ACOL FCOL ID(s) PTVIRG
-    ID(s) ATRIB STRING("Felipe") PTVIRG
-    ID(s) ATRIB STRING("foo\"bar") PTVIRG
-    ID(s) ATRIB STRING("multiline\
-string\"\t\n") PTVIRG
+    ID(s) ATRIB STRING(Felipe) PTVIRG
+    ID(s) ATRIB STRING(foo"bar) PTVIRG
+    ID(s) ATRIB STRING(multiline string"	
+) PTVIRG
 FCHAVE

@@ -20,6 +20,6 @@ void func(int a) {
     char[] s;
     s = "Felipe";
     s = "foo\"bar";
-    s = "multiline\
+    s = "multiline \
 string\"\t\n";
 }

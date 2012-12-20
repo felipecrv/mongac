@@ -1,11 +1,10 @@
 CHAR ACOL FCOL ID(func) APAR FPAR ACHAVE 
     CHAR ACOL FCOL ID(s) PTVIRG 
 
-    ID(s) ATRIB STRING("A simple string") PTVIRG 
-    ID(s) ATRIB STRING("A simple string with a \" inside it") PTVIRG 
-    ID(s) ATRIB STRING("first string in the line") PTVIRG ID(s) ATRIB STRING("second string in the line") PTVIRG 
-    ID(s) ATRIB STRING("first string in the line with a quote\"") PTVIRG ID(s) ATRIB STRING("second in the line. multiline\
-string") PTVIRG 
-    ID(s) ATRIB STRING("string with tab \t in it") PTVIRG 
-    RETURN STRING("strings are fun") PTVIRG 
+    ID(s) ATRIB STRING(A simple string) PTVIRG 
+    ID(s) ATRIB STRING(A simple string with a " inside it) PTVIRG 
+    ID(s) ATRIB STRING(first string in the line) PTVIRG ID(s) ATRIB STRING(second string in the line) PTVIRG 
+    ID(s) ATRIB STRING(first string in the line with a quote") PTVIRG ID(s) ATRIB STRING(second in the line. multiline string) PTVIRG 
+    ID(s) ATRIB STRING(string with tab 	 in it) PTVIRG 
+    RETURN STRING(strings are fun) PTVIRG 
 FCHAVE 

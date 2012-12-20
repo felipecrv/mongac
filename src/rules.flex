@@ -61,6 +61,7 @@ static void mg_char_to_printable(char c, char* print) {
     default:
         print[0] = c;
         print[1] = '\0';
+        break;
     }
 }
 
@@ -84,8 +85,7 @@ WHITE      [ \n\r\t]+
            BEGIN(MG_STRING);
            mg_debug("BEGIN(MG_STRING)\n");
            mg_str_buf = &mg_ch_buffer[mg_ch_buffer_next_slot];
-           mg_str_buf[0] = '"';
-           mg_str_buf_pos = 1;
+           mg_str_buf_pos = 0;
         %}
 
 if      mg_dump_token("IF", NULL);
@@ -125,7 +125,7 @@ float   mg_dump_token("FLOAT", NULL);
 {WHITE} printf("%s", yytext); // output the spaces
 .       %{
             mg_char_to_printable(yytext[0], (char *) mg_unexpected_char);
-            mg_error("unexpected char '%s'", mg_unexpected_char);
+            mg_error("unexpected character '%s'", mg_unexpected_char);
         %}
 }
 
@@ -139,16 +139,43 @@ float   mg_dump_token("FLOAT", NULL);
 
 <MG_STRING>{
 (?s:\\.)      %{
-                  mg_str_buf[mg_str_buf_pos++] = yytext[0];
-                  mg_str_buf[mg_str_buf_pos++] = yytext[1];
+                  switch (yytext[1]) {
+                  case 'n':
+                      mg_str_buf[mg_str_buf_pos++] = '\n';
+                      break;
+                  case 't':
+                      mg_str_buf[mg_str_buf_pos++] = '\t';
+                      break;
+                  case 'r':
+                      mg_str_buf[mg_str_buf_pos++] = '\r';
+                      break;
+                  case '"':
+                      mg_str_buf[mg_str_buf_pos++] = '"';
+                      break;
+                  case '0':
+                      mg_str_buf[mg_str_buf_pos++] = '\0';
+                      break;
+                  case '\\':
+                      mg_str_buf[mg_str_buf_pos++] = '\\';
+                      break;
+                  case '\n':
+                      // ignore the newline after backslash
+                      break;
+                  default:
+                      mg_char_to_printable(yytext[1], mg_unexpected_char);
+                      mg_error(
+                          "invalid escape sequence. unexpected '%s' after \\",
+                          mg_unexpected_char);
+                      mg_str_buf[mg_str_buf_pos++] = '\\';
+                      break;
+                  }
               %}
 [^\\\"\n\r]+  %{
                   memcpy(&mg_str_buf[mg_str_buf_pos], yytext, strlen(yytext));
                   mg_str_buf_pos += strlen(yytext);
               %}
-{NEWLINE}     mg_error("missing \" before newline"); BEGIN(INITIAL);
+{NEWLINE}     mg_error("missing terminating character \""); BEGIN(INITIAL);
 \"            %{
-                  mg_str_buf[mg_str_buf_pos++] = '"';
                   mg_dump_token("STRING", mg_str_buf);
                   mg_ch_buffer_next_slot += mg_str_buf_pos;
                   BEGIN(INITIAL);
