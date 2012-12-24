@@ -6,5 +6,8 @@ CHAR ACOL FCOL ID(func) APAR FPAR ACHAVE
     ID(s) ATRIB STRING(first string in the line) PTVIRG ID(s) ATRIB STRING(second string in the line) PTVIRG 
     ID(s) ATRIB STRING(first string in the line with a quote") PTVIRG ID(s) ATRIB STRING(second in the line. multiline string) PTVIRG 
     ID(s) ATRIB STRING(string with tab 	 in it) PTVIRG 
+    CHAR ID(c) ATRIB STRING(a) PTVIRG
+    ID(c) ATRIB STRING(aba) PTVIRG
+    ID(c) ATRIB STRING(a'ba) PTVIRG
     RETURN STRING(strings are fun) PTVIRG 
 FCHAVE 

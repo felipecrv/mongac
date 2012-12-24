@@ -21,4 +21,7 @@ VOID ID(func) APAR INT ID(a) FPAR ACHAVE
     ID(s) ATRIB STRING(foo"bar) PTVIRG
     ID(s) ATRIB STRING(multiline string"	
 ) PTVIRG
+    CHAR ID(c) ATRIB STRING(a) PTVIRG
+    ID(c) ATRIB STRING(aba) PTVIRG
+    ID(c) ATRIB STRING(a'ba) PTVIRG
 FCHAVE

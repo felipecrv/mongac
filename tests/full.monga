@@ -22,4 +22,8 @@ void func(int a) {
     s = "foo\"bar";
     s = "multiline \
 string\"\t\n";
+    char c = 'a';
+    c = 'aba';
+    c = 'a\'\
+ba';
 }

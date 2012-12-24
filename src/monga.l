@@ -69,13 +69,14 @@ static void mg_char_to_printable(char c, char* print) {
 
 LNUM       [0-9]+
 DNUM       ([0-9]*\.[0-9]+)|([0-9]+\.[0-9]*)
-HNUM       0x[0-9a-fA-F]+
+HNUM       0[xX][0-9a-fA-F]+
 ID         [_A-Za-z][_A-Za-z0-9]*
 NEWLINE    (\r\n|\n|\r)
 WHITE      [ \n\r\t]+
 
 %s MG_COMMENT
 %s MG_STRING
+%s MG_CHAR
 
 %%
 
@@ -87,7 +88,12 @@ WHITE      [ \n\r\t]+
            mg_str_buf = &mg_ch_buffer[mg_ch_buffer_next_slot];
            mg_str_buf_pos = 0;
         %}
-
+"'"     %{
+          BEGIN(MG_CHAR);
+          mg_debug("BEGIN(MG_CHAR)\n");
+          mg_str_buf = &mg_ch_buffer[mg_ch_buffer_next_slot];
+          mg_str_buf_pos = 0;
+        %}
 if      mg_dump_token("IF", NULL);
 else    mg_dump_token("ELSE", NULL);
 while   mg_dump_token("WHILE", NULL);
@@ -134,7 +140,7 @@ float   mg_dump_token("FLOAT", NULL);
 [^*\n]+   // eat comments in chunks
 "*"       // eat the lone star
 \n        putchar('\n'); // eat newlines and output them
-<<EOF>>   mg_error("unterminated comment"); yyterminate();
+<<EOF>>   mg_error("unterminated_comment"); yyterminate();
 }
 
 <MG_STRING>{
@@ -176,6 +182,51 @@ float   mg_dump_token("FLOAT", NULL);
               %}
 {NEWLINE}     mg_error("missing terminating character \""); BEGIN(INITIAL);
 \"            %{
+                  mg_dump_token("STRING", mg_str_buf);
+                  mg_ch_buffer_next_slot += mg_str_buf_pos;
+                  BEGIN(INITIAL);
+              %}
+}
+
+<MG_CHAR>{
+(?s:\\.)      %{
+                  switch (yytext[1]) {
+                  case 'n':
+                      mg_str_buf[mg_str_buf_pos++] = '\n';
+                      break;
+                  case 't':
+                      mg_str_buf[mg_str_buf_pos++] = '\t';
+                      break;
+                  case 'r':
+                      mg_str_buf[mg_str_buf_pos++] = '\r';
+                      break;
+                  case '\'':
+                      mg_str_buf[mg_str_buf_pos++] = '\'';
+                      break;
+                  case '0':
+                      mg_str_buf[mg_str_buf_pos++] = '\0';
+                      break;
+                  case '\\':
+                      mg_str_buf[mg_str_buf_pos++] = '\\';
+                      break;
+                  case '\n':
+                      // ignore the newline after backslash
+                      break;
+                  default:
+                      mg_char_to_printable(yytext[1], mg_unexpected_char);
+                      mg_error(
+                          "invalid escape sequence. unexpected '%s' after \\",
+                          mg_unexpected_char);
+                      mg_str_buf[mg_str_buf_pos++] = '\\';
+                      break;
+                  }
+              %}
+[^\\\'\n\r]+  %{
+                  memcpy(&mg_str_buf[mg_str_buf_pos], yytext, strlen(yytext));
+                  mg_str_buf_pos += strlen(yytext);
+              %}
+{NEWLINE}     mg_error("missing terminating character \""); BEGIN(INITIAL);
+"'"           %{
                   mg_dump_token("STRING", mg_str_buf);
                   mg_ch_buffer_next_slot += mg_str_buf_pos;
                   BEGIN(INITIAL);
