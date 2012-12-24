@@ -134,7 +134,7 @@ float   mg_dump_token("FLOAT", NULL);
 [^*\n]+   // eat comments in chunks
 "*"       // eat the lone star
 \n        putchar('\n'); // eat newlines and output them
-<<EOF>>   mg_error("unterminated_comment"); yyterminate();
+<<EOF>>   mg_error("unterminated comment"); yyterminate();
 }
 
 <MG_STRING>{
