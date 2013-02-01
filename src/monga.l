@@ -3,17 +3,16 @@
 %option yylineno
 
 %top{
-#include <stdio.h>
-#include <stdint.h>
-#include <stdarg.h>
+#include <cstdio>
+#include <cstdarg>
 }
 
 %{
-extern int yywrap(void) { return 1; }
+extern "C" int yywrap(void) { return 1; }
 
 int mg_scan_errno = 0; // error code
 char *mg_ch_buffer, *mg_str_buf;
-int mg_ch_buffer_next_slot = 0, mg_str_buf_pos = 0, mg_i;
+yy_size_t mg_ch_buffer_next_slot = 0, mg_str_buf_pos = 0;
 char mg_unexpected_char[3];
 
 static void mg_error(const char *fmt, ...) {
@@ -23,6 +22,7 @@ static void mg_error(const char *fmt, ...) {
     fprintf(stderr, "error:%d: ", yylineno);
     vfprintf(stderr, fmt, ap);
     putchar('\n');
+    va_end(ap);
 }
 
 static void mg_dump_token(const char* token_name, const char* token_value) {
@@ -38,6 +38,7 @@ static void mg_debug(const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
+    va_end(ap);
 #endif
 }
 
