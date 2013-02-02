@@ -1,6 +1,7 @@
+*.o
 *.yy.c
 *.yy.cpp
 *.swp
 *.swo
 tags
-mongascan
+mongascanner

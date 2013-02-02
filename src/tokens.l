@@ -5,67 +5,19 @@
 %top{
 #include <cstdio>
 #include <cstdarg>
+#include "tokens.h"
 }
 
 %{
-extern "C" int yywrap(void) { return 1; }
+static int mg_scan_errno = 0; // error code
+static char *mg_ch_buffer, *mg_str_buf;
+static yy_size_t mg_ch_buffer_next_slot = 0, mg_str_buf_pos = 0;
+static char mg_unexpected_char[3];
 
-int mg_scan_errno = 0; // error code
-char *mg_ch_buffer, *mg_str_buf;
-yy_size_t mg_ch_buffer_next_slot = 0, mg_str_buf_pos = 0;
-char mg_unexpected_char[3];
-
-static void mg_error(const char *fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    mg_scan_errno = 1;
-    fprintf(stderr, "error:%d: ", yylineno);
-    vfprintf(stderr, fmt, ap);
-    putchar('\n');
-    va_end(ap);
-}
-
-static void mg_dump_token(const char* token_name, const char* token_value) {
-    if (token_value) {
-        printf("%s(%s) ", token_name, token_value);
-    } else {
-        printf("%s ", token_name);
-    }
-}
-
-static void mg_debug(const char* fmt, ...) {
-#ifdef DEBUG
-    va_list ap;
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-#endif
-}
-
-static void mg_char_to_printable(char c, char* print) {
-    switch (c) {
-    case '\n':
-        print[0] = '\\';
-        print[1] = 'n';
-        print[2] = '\0';
-        break;
-    case '\t':
-        print[0] = '\\';
-        print[1] = 't';
-        print[2] = '\0';
-        break;
-    case '\r':
-        print[0] = '\\';
-        print[1] = 'r';
-        print[2] = '\0';
-        break;
-    default:
-        print[0] = c;
-        print[1] = '\0';
-        break;
-    }
-}
-
+static void mg_error(const char*, ...);
+static void mg_dump_token(const char*, const char*);
+static void mg_debug(const char*, ...);
+static void mg_char_to_printable(char, char*);
 %}
 
 LNUM       [0-9]+
@@ -236,10 +188,67 @@ float   mg_dump_token("FLOAT", NULL);
 
 %%
 
-int main(int argc, char *argv[]) {
+int yywrap(void) {
+    return 1;
+}
+
+void mg_scanner_init() {
     mg_ch_buffer = (char *) yyalloc(YY_BUF_SIZE);
     memset(mg_ch_buffer, 0, YY_BUF_SIZE);
-    yylex();
+}
+
+int mg_scanner_finish() {
     yyfree(mg_ch_buffer);
     return mg_scan_errno;
+}
+
+static void mg_error(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    mg_scan_errno = 1;
+    fprintf(stderr, "error:%d: ", yylineno);
+    vfprintf(stderr, fmt, ap);
+    putchar('\n');
+    va_end(ap);
+}
+
+static void mg_dump_token(const char* token_name, const char* token_value) {
+    if (token_value) {
+        printf("%s(%s) ", token_name, token_value);
+    } else {
+        printf("%s ", token_name);
+    }
+}
+
+static void mg_debug(const char* fmt, ...) {
+#ifdef DEBUG
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+#endif
+}
+
+static void mg_char_to_printable(char c, char* print) {
+    switch (c) {
+    case '\n':
+        print[0] = '\\';
+        print[1] = 'n';
+        print[2] = '\0';
+        break;
+    case '\t':
+        print[0] = '\\';
+        print[1] = 't';
+        print[2] = '\0';
+        break;
+    case '\r':
+        print[0] = '\\';
+        print[1] = 'r';
+        print[2] = '\0';
+        break;
+    default:
+        print[0] = c;
+        print[1] = '\0';
+        break;
+    }
 }
