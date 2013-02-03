@@ -1,25 +1,29 @@
-class MongaProg {
+
+class MongaAstNode {
 };
 
-class MongaDecl {
+class MongaProg : public MongaAstNode {
+};
+
+class MongaDecl : public MongaAstNode {
 };
 
 class MongaVarDecls : public MongaDecl {
 };
 
-class MongaType {
+class MongaType : public MongaAstNode {
 };
 
-class MongaId {
+class MongaId : public MongaAstNode {
 };
 
 class MongaFuncDecl : public MongaDecl {
 };
 
-class MongaArg {
+class MongaArg : public MongaAstNode {
 };
 
-class MongaStmt {
+class MongaStmt : public MongaAstNode {
 };
 
 class MongaIfStmt : public MongaStmt {
@@ -34,10 +38,10 @@ class MongaAssignStmt : public MongaStmt {
 class MongaReturnStmt : public MongaStmt {
 };
 
-class MongaBlock {
+class MongaBlock : public MongaAstNode {
 };
 
-class MongaExp {
+class MongaExp : public MongaAstNode {
 };
 
 class MongaVar : public MongaExp {
