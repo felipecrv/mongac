@@ -5,7 +5,23 @@
 %top{
 #include <cstdio>
 #include <cstdarg>
+#include <string>
+#include <vector>
 #include "tokens.h"
+#include "ast.h"
+#include "parser.h"
+
+#ifdef MG_SCANNER
+  // Dump tokens if MG_SCANNER is defined
+  #define TOK(t)         mg_dump_token(#t, NULL)
+  #define VAL_TOK(t)     mg_dump_token(#t, yytext)
+  #define STR_TOK(t, st) mg_dump_token(#t, st)
+#else
+  // Return the tokens if it's not just a scanner
+  #define TOK(t)         return (yylval.token = t)
+  #define VAL_TOK(t)     return yylval.string = new std::string(yytext, yyleng)
+  #define STR_TOK(t, st) return yylval.string = new std::strlen(st)
+#endif
 }
 
 %{
@@ -47,41 +63,45 @@ WHITE      [ \n\r\t]+
           mg_str_buf = &mg_ch_buffer[mg_ch_buffer_next_slot];
           mg_str_buf_pos = 0;
         %}
-if      mg_dump_token("IF", NULL);
-else    mg_dump_token("ELSE", NULL);
-while   mg_dump_token("WHILE", NULL);
-new     mg_dump_token("NEW", NULL);
-return  mg_dump_token("RETURN", NULL);
-void    mg_dump_token("VOID", NULL);
-int     mg_dump_token("INT", NULL);
-char    mg_dump_token("CHAR", NULL);
-float   mg_dump_token("FLOAT", NULL);
-{HNUM}  mg_dump_token("NUMINT", yytext);
-{LNUM}  mg_dump_token("NUMINT", yytext);
-{DNUM}  mg_dump_token("NUMFLOAT", yytext);
-{ID}    mg_dump_token("ID", yytext);
-"("     mg_dump_token("APAR", NULL);
-")"     mg_dump_token("FPAR", NULL);
-"["     mg_dump_token("ACOL", NULL);
-"]"     mg_dump_token("FCOL", NULL);
-","     mg_dump_token("VIRG", NULL);
-";"     mg_dump_token("PTVIRG", NULL);
-"="     mg_dump_token("ATRIB", NULL);
-"=="    mg_dump_token("IGUAL", NULL);
-"+"     mg_dump_token("SOMA", NULL);
-"-"     mg_dump_token("SUB", NULL);
-"*"     mg_dump_token("MULT", NULL);
-"/"     mg_dump_token("DIV", NULL);
-">"     mg_dump_token("MAIORQ", NULL);
-"<"     mg_dump_token("MENORQ", NULL);
-">="    mg_dump_token("MAIORIG", NULL);
-"<="    mg_dump_token("MENORIG", NULL);
-"!"     mg_dump_token("NAO", NULL);
-"||"    mg_dump_token("OU", NULL);
-"&&"    mg_dump_token("E", NULL);
-"{"     mg_dump_token("ACHAVE", NULL);
-"}"     mg_dump_token("FCHAVE", NULL);
-{WHITE} printf("%s", yytext); // output the spaces
+if      TOK(IF);
+else    TOK(ELSE);
+while   TOK(WHILE);
+new     TOK(NEW);
+return  TOK(RETURN);
+void    TOK(VOID);
+int     TOK(INT);
+char    TOK(CHAR);
+float   TOK(FLOAT);
+{HNUM}  VAL_TOK(NUMINT);
+{LNUM}  VAL_TOK(NUMINT);
+{DNUM}  VAL_TOK(NUMFLOAT);
+{ID}    VAL_TOK(ID);
+"("     TOK(APAR);
+")"     TOK(FPAR);
+"["     TOK(ACOL);
+"]"     TOK(FCOL);
+","     TOK(VIRG);
+";"     TOK(PTVIRG);
+"="     TOK(ATRIB);
+"=="    TOK(IGUAL);
+"+"     TOK(SOMA);
+"-"     TOK(SUB);
+"*"     TOK(MULT);
+"/"     TOK(DIV);
+">"     TOK(MAIORQ);
+"<"     TOK(MENORQ);
+">="    TOK(MAIORIG);
+"<="    TOK(MENORIG);
+"!"     TOK(NAO);
+"||"    TOK(OU);
+"&&"    TOK(E);
+"{"     TOK(ACHAVE);
+"}"     TOK(FCHAVE);
+{WHITE} %{
+#ifdef MG_SCANNER
+            printf("%s", yytext); // output the spaces
+#endif
+        %}
 .       %{
             mg_char_to_printable(yytext[0], (char *) mg_unexpected_char);
             mg_error("unexpected character '%s'", mg_unexpected_char);
@@ -92,7 +112,11 @@ float   mg_dump_token("FLOAT", NULL);
 "*/"      BEGIN(INITIAL);
 [^*\n]+   // eat comments in chunks
 "*"       // eat the lone star
-\n        putchar('\n'); // eat newlines and output them
+\n        %{
+#ifdef MG_SCANNER
+              putchar('\n'); // eat newlines and output them
+#endif
+          %}
 <<EOF>>   mg_error("unterminated_comment"); yyterminate();
 }
 
@@ -135,9 +159,9 @@ float   mg_dump_token("FLOAT", NULL);
               %}
 {NEWLINE}     mg_error("missing terminating character \""); BEGIN(INITIAL);
 \"            %{
-                  mg_dump_token("STRING", mg_str_buf);
                   mg_ch_buffer_next_slot += mg_str_buf_pos;
                   BEGIN(INITIAL);
+                  STR_TOK(STRING, mg_str_buf);
               %}
 }
 
@@ -180,9 +204,9 @@ float   mg_dump_token("FLOAT", NULL);
               %}
 {NEWLINE}     mg_error("missing terminating character \""); BEGIN(INITIAL);
 "'"           %{
-                  mg_dump_token("STRING", mg_str_buf);
                   mg_ch_buffer_next_slot += mg_str_buf_pos;
                   BEGIN(INITIAL);
+                  STR_TOK(STRING, mg_str_buf);
               %}
 }
 
