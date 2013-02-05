@@ -1,5 +1,5 @@
 CPP=g++
-CPP_FLAGS=-I src/ -Wall -O2 -std=c++0x -DDEBUG
+CPP_FLAGS=-I src/ -I /usr/include/c++/4.7/ -Wall -O2 -std=c++0x -DDEBUG
 LEX=flex
 BISON=bison --verbose
 DIFF=diff -u -w -B
@@ -35,7 +35,7 @@ clean:
 	rm -f tokens.cpp
 	rm -f mongascanner
 
-test: mongascanner
+test_scanner: mongascanner
 	./$< < tests/full.monga > out 2> /dev/null
 	$(DIFF) out tests/full.monga.scan
 	./$< < tests/basic.monga > out 2> /dev/null
@@ -44,4 +44,9 @@ test: mongascanner
 	$(DIFF) out tests/string.monga.scan
 	rm out
 
-.PHONY: all test clean
+test_parser: mongaast
+	./$< < tests/full.monga
+
+test: test_scanner
+
+.PHONY: all test_scanner clean

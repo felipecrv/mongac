@@ -1,29 +1,29 @@
 %{
     #include <string>
     #include <vector>
-
+    #include "tokens.h"
     #include "ast.h"
+    using namespace monga;
+
     /* raiz da AST */
     MongaProg* program;
 
-    extern int yylex();
     void yyerror(const char *s) { printf("ERROR: %s\n", s); }
 %}
 
 /* representa um nó qualquer de nossa AST */
 %union {
     MongaProg *prog;
-    std::vector<MongaDecl*>* decls;
     MongaDecl* decl;
     MongaType* type;
-    std::vector<MongaId*>* id_vec;
-    std::vector<MongaArg*>* args;
+    MongaIdVec* id_vec;
+    MongaArgsVec* args;
     MongaArg* arg;
     MongaBlock* block;
     MongaStmt* stmt;
     MongaExp* exp;
-    std::vector<MongaExp*> exp_vec;
-    std::string *string;
+    MongaExpVec* exp_vec;
+    std::string* string;
     int token;
 }
 
@@ -43,8 +43,8 @@
 /* Define os símbolos não terminais. O tipo pode ser qualquer campo da union
  * previamente definida */
 %type <prog> programa
-%type <decls> declaracoes
-%type <decl> declaracao dec_variaveis dec_funcao
+%type <decl> declaracao dec_funcao
+%type <decl> dec_variaveis 
 %type <type> tipo
 %type <token> tipo_base bracket_pairs
 %type <id_vec> lista_nomes
@@ -52,7 +52,7 @@
 %type <arg> parametro
 %type <block> bloco var_decls_or_stmts comando
 %type <stmt> simple_stmt
-%type <exp> var exp chamada
+%type <exp> exp chamada var
 %type <exp_vec> lista_exp lista_exp_nao_vazia
 
 /* Precedência dos operadores */
@@ -67,12 +67,9 @@
 
 %%
 
-programa : declaracoes { program = new MongaProg($<decls>1); }
+programa : programa declaracao { $<prog>1->push_back($<decl>2); }
+         | /* empty */ { $$ = new MongaProg(); }
          ;
-
-declaracoes : declaracao { $$ = new MongaDeclList(); $$->push_back(*$<decl>1); }
-            | declaracoes declaracao { $<decls>1->push_back($<decl>2); }
-            ;
 
 declaracao : dec_variaveis
            | dec_funcao
@@ -81,8 +78,8 @@ declaracao : dec_variaveis
 dec_variaveis : tipo lista_nomes PTVIRG { $$ = new MongaVarDecls($<type>1, $<id_vec>2); }
               ;
 
-tipo : tipo_base { $$ = new MongaType($<tipo_base>1); }
-     | tipo_base bracket_pairs { $$ = new MongaType($<tipo_base>1, $<bracket_pairs>2); }
+tipo : tipo_base { $$ = new MongaType($1); }
+     | tipo_base bracket_pairs { $$ = new MongaType($1, $2); }
      ;
 
 bracket_pairs : ACOL FCOL { $$ = 1; }
@@ -94,7 +91,7 @@ tipo_base : INT
           | FLOAT
           ;
 
-lista_nomes : ID { $$ = new std::vector<MongaId>(); $$->push_back($1); }
+lista_nomes : ID { $$ = new MongaIdVec(); $$->push_back($1); }
             | lista_nomes VIRG ID { $<id_vec>1->push_back($3); }
             ;
 
@@ -103,10 +100,10 @@ dec_funcao : tipo ID APAR parametros FPAR bloco { $$ = new MongaFuncDecl($<type>
            ;
 
 parametros : parametros_nao_vazio
-           | /* empty */ { $$ = new std::vector<MongaArg>(); }
+           | /* empty */ { $$ = new MongaArgsVec(); }
            ;
 
-parametros_nao_vazio : parametro { $$ = new std::vector<MongaArg>(); $$->push_back($<args>1); }
+parametros_nao_vazio : parametro { $$ = new MongaArgsVec(); $$->push_back($<arg>1); }
                      | parametros_nao_vazio VIRG parametro { $1->push_back($<arg>3); }
                      ;
 
@@ -116,32 +113,32 @@ parametro : tipo ID { $$ = new MongaArg($<type>1, $2); }
 bloco : ACHAVE var_decls_or_stmts FCHAVE { $$ = $<block>2; }
       ;
 
-var_decls_or_stmts : dec_variaveis { $$ = new MongaBlock(); $$->push_decl($<decl>1); }
-                   | simple_stmt { $$ = new MongaBlock(); $$->push_stmt($<stmt>1); }
-                   | var_decls_or_stmts dec_variaveis { $1->push_decl($<decl>2); }
-                   | var_decls_or_stmts simple_stmt { $1->push_stmt($<stmt>2); }
+var_decls_or_stmts : dec_variaveis { $$ = new MongaBlock(); $$->push_back(new MongaVarDeclsOrStmt((MongaVarDecls *) $<decl>1)); }
+                   | simple_stmt { $$ = new MongaBlock(); $$->push_back(new MongaVarDeclsOrStmt($<stmt>1)); }
+                   | var_decls_or_stmts dec_variaveis { $1->push_back(new MongaVarDeclsOrStmt((MongaVarDecls *) $<decl>2)); }
+                   | var_decls_or_stmts simple_stmt { $1->push_back(new MongaVarDeclsOrStmt($<stmt>2)); }
                    ;
 
 simple_stmt : IF APAR exp FPAR comando { $$ = new MongaIfStmt($<exp>3, $<block>5); }
             | IF APAR exp FPAR comando ELSE comando { $$ = new MongaIfStmt($<exp>3, $<block>5, $<block>6); }
             | WHILE APAR exp FPAR comando { $$ = new MongaWhileStmt($<exp>3, $<block>5); }
-            | var ATRIB exp PTVIRG { $$ = new MongaAssignStmt($<exp>$1, $<exp>3); }
+            | var ATRIB exp PTVIRG { $$ = new MongaAssignStmt((MongaVar *) $<exp>1, $<exp>3); }
             | RETURN PTVIRG { $$ = new MongaReturnStmt(); }
             | RETURN exp PTVIRG { $$ = new MongaReturnStmt($<exp>2); }
-            | chamada PTVIRG { $$ = new MongaStmt($<block>1); }
+            | chamada PTVIRG { $$ = new MongaExpStmt($<exp>1); }
             ;
 
-comando : simple_stmt { $$ = new MongaBlock(); $$->push_stmt($<stmt>1); }
+comando : simple_stmt { $$ = new MongaBlock(); $$->push_back(new MongaVarDeclsOrStmt($<stmt>1)); }
         | bloco
         ;
 
 var : ID { $$ = new MongaVar($1); }
-    | var ACOL exp FCOL { $$ = $<var>1->atAddress($<exp>3); }
+    | var ACOL exp FCOL { $$ = ((MongaVar *) $<exp>1)->push_subscript($<exp>3); }
     ;
 
-exp : NUMINT { $$ = new MongaIntLiteral($1); }
-    | NUMFLOAT { $$ = new MongaFloatLiteral($1); }
-    | STRING { $$ = new MongaStringLiteral($1); }
+exp : NUMINT { $$ = new MongaIntLiteral($<string>1); }
+    | NUMFLOAT { $$ = new MongaFloatLiteral($<string>1); }
+    | STRING { $$ = new MongaStringLiteral($<string>1); }
     | var
     | APAR exp FPAR { $$ = $<exp>1; }
     | chamada
@@ -165,11 +162,11 @@ chamada : ID APAR lista_exp FPAR { $$ = new MongaFuncCall($1, $<exp_vec>3); }
         ;
 
 lista_exp : lista_exp_nao_vazia
-          | /* empty */ { $$ = new std::vector<MongaExp>(); }
+          | /* empty */ { $$ = new MongaExpVec(); }
           ;
 
-lista_exp_nao_vazia : exp { $$ = new std::vector<MongaExp>(); $$->push_back(*$<exp>1); }
-                    | lista_exp_nao_vazia VIRG exp { $$->push_back(*$<exp>3); }
+lista_exp_nao_vazia : exp { $$ = new MongaExpVec(); $$->push_back($<exp>1); }
+                    | lista_exp_nao_vazia VIRG exp { $$->push_back($<exp>3); }
                     ;
 
 %%

@@ -9,6 +9,7 @@
 #include <vector>
 #include "tokens.h"
 #include "ast.h"
+using namespace monga; // necessary inside the bison-generated parser.h
 #include "parser.h"
 
 #ifdef MG_SCANNER
@@ -18,9 +19,15 @@
   #define STR_TOK(t, st) mg_dump_token(#t, st)
 #else
   // Return the tokens if it's not just a scanner
-  #define TOK(t)         return (yylval.token = t)
-  #define VAL_TOK(t)     return yylval.string = new std::string(yytext, yyleng)
-  #define STR_TOK(t, st) return yylval.string = new std::strlen(st)
+  #ifdef DEBUG
+    #define TOK(t)         mg_dump_token(#t, NULL); return (yylval.token = t)
+    #define VAL_TOK(t)     mg_dump_token(#t, yytext); yylval.string = new std::string(yytext, yyleng); return (t)
+    #define STR_TOK(t, st) mg_dump_token(#t, st); yylval.string = new std::string(st); return (t)
+  #else
+    #define TOK(t)         return (yylval.token = t)
+    #define VAL_TOK(t)     yylval.string = new std::string(yytext, yyleng); return (t)
+    #define STR_TOK(t, st) yylval.string = new std::string(st); return (t)
+  #endif
 #endif
 }
 
@@ -99,6 +106,9 @@ float   TOK(FLOAT);
 "}"     TOK(FCHAVE);
 {WHITE} %{
 #ifdef MG_SCANNER
+            printf("%s", yytext); // output the spaces
+#endif
+#ifdef DEBUG
             printf("%s", yytext); // output the spaces
 #endif
         %}
