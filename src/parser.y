@@ -46,7 +46,7 @@
 %type <decl> declaracao dec_funcao
 %type <decl> dec_variaveis 
 %type <type> tipo
-%type <token> tipo_base bracket_pairs
+%type <token> tipo_base
 %type <id_vec> lista_nomes
 %type <args> parametros parametros_nao_vazio
 %type <arg> parametro
@@ -67,8 +67,8 @@
 
 %%
 
-programa : programa declaracao { $<prog>1->push_back($<decl>2); }
-         | /* empty */ { $$ = new MongaProg(); }
+programa : /* empty */ { $$ = new MongaProg(); }
+         | programa declaracao { $<prog>1->push_back($<decl>2); }
          ;
 
 declaracao : dec_variaveis
@@ -79,12 +79,8 @@ dec_variaveis : tipo lista_nomes PTVIRG { $$ = new MongaVarDecls($<type>1, $<id_
               ;
 
 tipo : tipo_base { $$ = new MongaType($1); }
-     | tipo_base bracket_pairs { $$ = new MongaType($1, $2); }
+     | tipo ACOL FCOL { $<type>1->addDimension(); $$ = $<type>1; }
      ;
-
-bracket_pairs : ACOL FCOL { $$ = 1; }
-              | bracket_pairs ACOL FCOL { $$ = $1 + 1; }
-              ;
 
 tipo_base : INT
           | CHAR
@@ -99,8 +95,8 @@ dec_funcao : tipo ID APAR parametros FPAR bloco { $$ = new MongaFuncDecl($<type>
            | VOID ID APAR parametros FPAR bloco { $$ = new MongaFuncDecl(new MongaType($1), $2, $<args>4, $<block>6); }
            ;
 
-parametros : parametros_nao_vazio
-           | /* empty */ { $$ = new MongaArgsVec(); }
+parametros : /* empty */ { $$ = new MongaArgsVec(); }
+           | parametros_nao_vazio
            ;
 
 parametros_nao_vazio : parametro { $$ = new MongaArgsVec(); $$->push_back($<arg>1); }
@@ -137,7 +133,14 @@ var : ID { $$ = new MongaVar($1); }
     ;
 
 exp : NUMINT { $$ = new MongaIntLiteral($<string>1); }
-    | NUMFLOAT { $$ = new MongaFloatLiteral($<string>1); }
+    | NUMFLOAT { string s(*$1);
+                 if (s[0] == '.') {
+                   s = "0" + s;
+                 } else if (s[s.size() - 1] == '.') {
+                   s = s + "0";
+                 }
+                 $$ = new MongaFloatLiteral(&s);
+               }
     | STRING { $$ = new MongaStringLiteral($<string>1); }
     | var
     | APAR exp FPAR { $$ = $<exp>1; }
@@ -161,8 +164,8 @@ exp : NUMINT { $$ = new MongaIntLiteral($<string>1); }
 chamada : ID APAR lista_exp FPAR { $$ = new MongaFuncCall($1, $<exp_vec>3); }
         ;
 
-lista_exp : lista_exp_nao_vazia
-          | /* empty */ { $$ = new MongaExpVec(); }
+lista_exp : /* empty */ { $$ = new MongaExpVec(); }
+          | lista_exp_nao_vazia
           ;
 
 lista_exp_nao_vazia : exp { $$ = new MongaExpVec(); $$->push_back($<exp>1); }

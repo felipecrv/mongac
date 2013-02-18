@@ -61,6 +61,7 @@ class MongaVec : public MongaAstNode {
 
     public:
         MongaVec() {
+
         }
 
         void push_back(T* item) {
@@ -76,6 +77,10 @@ class MongaType : public MongaAstNode {
     public:
         MongaType(int type_tok, int arr_dimensions = 0)
             : type_tok(type_tok), array_dimensions(arr_dimensions) {
+        }
+
+        void addDimension() {
+            ++array_dimensions;
         }
 };
 
