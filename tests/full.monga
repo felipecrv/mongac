@@ -13,8 +13,8 @@ void func(int a) {
      * comment */
     float f;
     f = 1.;
-    f = 10.67, b = 0xdeadBEEF;
-    a = b, b = a;
+    f = 10.67; b = 0xdeadBEEF;
+    a = b; b = a;
     a = a + b * a / b - 1;
     int z = a <= b || a >= b;
     char[] s;

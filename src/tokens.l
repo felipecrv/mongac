@@ -108,9 +108,6 @@ float   TOK(FLOAT);
 #ifdef MG_SCANNER
             printf("%s", yytext); // output the spaces
 #endif
-#ifdef DEBUG
-            printf("%s", yytext); // output the spaces
-#endif
         %}
 .       %{
             mg_char_to_printable(yytext[0], (char *) mg_unexpected_char);
