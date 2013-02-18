@@ -1,7 +1,10 @@
 *.o
 *.yy.c
 *.yy.cpp
+*.output
+*.tab.c
 *.swp
 *.swo
 tags
 mongascanner
+mongaparser

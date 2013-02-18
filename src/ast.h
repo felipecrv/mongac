@@ -2,7 +2,7 @@
 #define MONGA_AST_
 
 #include <memory>
-#include <boost/lexical_cast.hpp>
+#include <vector>
 
 namespace monga {
 using namespace std;
@@ -112,8 +112,8 @@ class MongaIntLiteral : public MongaExp {
         long long val;
 
     public:
-        MongaIntLiteral(string* s)
-            : val(boost::lexical_cast<long long>(*s)) {
+        MongaIntLiteral(string* s) {
+            // TODO: convert s to long long
         }
 };
 
@@ -122,7 +122,9 @@ class MongaFloatLiteral : public MongaExp {
         double val;
 
     public:
-        MongaFloatLiteral(string* s) : val(boost::lexical_cast<double>(*s)) {
+        MongaFloatLiteral(string* s) {
+            // TODO: convert s to double
+            // val = atof(s->c_str());
         }
 };
 

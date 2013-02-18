@@ -8,8 +8,12 @@
     /* raiz da AST */
     MongaProg* program;
 
-    void yyerror(const char *s) { printf("ERROR: %s\n", s); }
+    void yyerror(const char *s) {
+        printf("error:%d: %s\n", yylineno, s);
+    }
 %}
+
+%error-verbose
 
 /* representa um nó qualquer de nossa AST */
 %union {
