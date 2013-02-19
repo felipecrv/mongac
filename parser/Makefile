@@ -26,6 +26,9 @@ clean:
 run: mongaparser
 	./$<
 
-test: run
+test: mongaparser
+	./$< < ../tests/basic.monga
+	./$< < ../tests/full.monga
+	./$< < ../tests/string.monga
 
 .PHONY: test run clean

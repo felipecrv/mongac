@@ -163,8 +163,8 @@ float   TOK(FLOAT);
                   }
               %}
 [^\\\"\n\r]+  %{
-                  memcpy(&mg_str_buf[mg_str_buf_pos], yytext, strlen(yytext));
-                  mg_str_buf_pos += strlen(yytext);
+                  memcpy(&mg_str_buf[mg_str_buf_pos], yytext, yyleng + 1);
+                  mg_str_buf_pos += yyleng;
               %}
 {NEWLINE}     mg_error("missing terminating character \""); BEGIN(INITIAL);
 \"            %{

@@ -8,7 +8,7 @@ extern MongaProg* program;
 extern int yyparse();
 
 int main() {
+    mg_scanner_init();
     yyparse();
-
-    return 0;
+    return mg_scanner_finish();
 }
