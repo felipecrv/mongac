@@ -1,5 +1,6 @@
 char[] func() {
     char[] s;
+    char c;
 
     s = "A simple string";
     s = "A simple string with a \" inside it";
@@ -7,7 +8,7 @@ char[] func() {
     s = "first string in the line with a quote\""; s = "second in the line. multiline \
 string";
     s = "string with tab \t in it";
-    char c = 'a';
+    c = 'a';
     c = 'aba';
     c = 'a\'\
 ba';

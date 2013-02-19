@@ -16,13 +16,14 @@ void func(int a) {
     f = 10.67; b = 0xdeadBEEF;
     a = b; b = a;
     a = a + b * a / b - 1;
-    int z = a <= b || a >= b;
+    int z;
+    z = a <= b || a >= b;
     char[] s;
     s = "Felipe";
     s = "foo\"bar";
     s = "multiline \
 string\"\t\n";
-    char c = 'a';
+    c = 'a';
     c = 'aba';
     c = 'a\'\
 ba';
