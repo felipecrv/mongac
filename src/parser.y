@@ -66,6 +66,7 @@
 %left E OU
 
 %right ATRIB
+%right NAO
 
 %start programa
 
