@@ -62,18 +62,18 @@
 /* Precedência dos operadores */
 %left SOMA SUB
 %left MULT DIV
-%left IGUAL MENORIG MAIORIG MENORQ MAIORQ
 %left E OU
-
+%left IGUAL MENORIG MAIORIG MENORQ MAIORQ
 %right ATRIB
-%right NAO
+
+%nonassoc NAO
 
 %start programa
 
 %%
 
-programa : /* empty */ { $$ = new MongaProg(); }
-         | programa declaracao { $<prog>1->push_back($<decl>2); }
+programa : /* empty */ { $$ = program = new MongaProg(); }
+         | programa declaracao { $<prog>1->add($<decl>2); }
          ;
 
 declaracao : dec_variaveis
@@ -92,8 +92,8 @@ tipo_base : INT
           | FLOAT
           ;
 
-lista_nomes : ID { $$ = new MongaIdVec(); $$->push_back($1); }
-            | lista_nomes VIRG ID { $<id_vec>1->push_back($3); }
+lista_nomes : ID { $$ = new MongaIdVec(); $$->add($1); }
+            | lista_nomes VIRG ID { $<id_vec>1->add($3); }
             ;
 
 dec_funcao : tipo ID APAR parametros FPAR bloco { $$ = new MongaFuncDecl($<type>1, $2, $<args>4, $<block>6); }
@@ -104,8 +104,8 @@ parametros : /* empty */ { $$ = new MongaArgsVec(); }
            | parametros_nao_vazio
            ;
 
-parametros_nao_vazio : parametro { $$ = new MongaArgsVec(); $$->push_back($<arg>1); }
-                     | parametros_nao_vazio VIRG parametro { $1->push_back($<arg>3); }
+parametros_nao_vazio : parametro { $$ = new MongaArgsVec(); $$->add($<arg>1); }
+                     | parametros_nao_vazio VIRG parametro { $1->add($<arg>3); }
                      ;
 
 parametro : tipo ID { $$ = new MongaArg($<type>1, $2); }
@@ -114,10 +114,10 @@ parametro : tipo ID { $$ = new MongaArg($<type>1, $2); }
 bloco : ACHAVE var_decls_or_stmts FCHAVE { $$ = $<block>2; }
       ;
 
-var_decls_or_stmts : dec_variaveis { $$ = new MongaBlock(); $$->push_back(new MongaVarDeclsOrStmt((MongaVarDecls *) $<decl>1)); }
-                   | simple_stmt { $$ = new MongaBlock(); $$->push_back(new MongaVarDeclsOrStmt($<stmt>1)); }
-                   | var_decls_or_stmts dec_variaveis { $1->push_back(new MongaVarDeclsOrStmt((MongaVarDecls *) $<decl>2)); }
-                   | var_decls_or_stmts simple_stmt { $1->push_back(new MongaVarDeclsOrStmt($<stmt>2)); }
+var_decls_or_stmts : dec_variaveis { $$ = new MongaBlock(); $$->add(new MongaVarDeclsOrStmt((MongaVarDecls *) $<decl>1)); }
+                   | simple_stmt { $$ = new MongaBlock(); $$->add(new MongaVarDeclsOrStmt($<stmt>1)); }
+                   | var_decls_or_stmts dec_variaveis { $1->add(new MongaVarDeclsOrStmt((MongaVarDecls *) $<decl>2)); }
+                   | var_decls_or_stmts simple_stmt { $1->add(new MongaVarDeclsOrStmt($<stmt>2)); }
                    ;
 
 simple_stmt : IF APAR exp FPAR comando { $$ = new MongaIfStmt($<exp>3, $<block>5); }
@@ -129,7 +129,7 @@ simple_stmt : IF APAR exp FPAR comando { $$ = new MongaIfStmt($<exp>3, $<block>5
             | chamada PTVIRG { $$ = new MongaExpStmt($<exp>1); }
             ;
 
-comando : simple_stmt { $$ = new MongaBlock(); $$->push_back(new MongaVarDeclsOrStmt($<stmt>1)); }
+comando : simple_stmt { $$ = new MongaBlock(); $$->add(new MongaVarDeclsOrStmt($<stmt>1)); }
         | bloco
         ;
 
@@ -148,7 +148,7 @@ exp : NUMINT { $$ = new MongaIntLiteral($<string>1); }
                }
     | STRING { $$ = new MongaStringLiteral($<string>1); }
     | var
-    | APAR exp FPAR { $$ = $<exp>1; }
+    | APAR exp FPAR { $$ = $<exp>2; }
     | chamada
     | NEW tipo ACOL exp FCOL { $$ = new MongaNewStmtExp($<type>1, $<exp>2); }
     | SUB exp { $$ = new MongaMinusExp($<exp>2); }
@@ -173,8 +173,8 @@ lista_exp : /* empty */ { $$ = new MongaExpVec(); }
           | lista_exp_nao_vazia
           ;
 
-lista_exp_nao_vazia : exp { $$ = new MongaExpVec(); $$->push_back($<exp>1); }
-                    | lista_exp_nao_vazia VIRG exp { $$->push_back($<exp>3); }
+lista_exp_nao_vazia : exp { $$ = new MongaExpVec(); $$->add($<exp>1); }
+                    | lista_exp_nao_vazia VIRG exp { $$->add($<exp>3); }
                     ;
 
 %%

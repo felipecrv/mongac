@@ -2,7 +2,9 @@
 #define MONGA_AST_
 
 #include <memory>
+#include <sstream>
 #include <vector>
+#include <string>
 
 namespace monga {
 using namespace std;
@@ -43,29 +45,42 @@ class MongaType;
 class MongaDecl;
 class MongaVarDecls;
 class MongaFuncDecl;
-class MongaProg;
 
 template <typename T> class MongaVec;
-typedef MongaVec<string> MongaIdVec;
+typedef MongaVec<std::string> MongaIdVec;
 typedef MongaVec<MongaArg> MongaArgsVec;
 typedef MongaVec<MongaVarDeclsOrStmt> MongaBlock;
 typedef MongaVec<MongaExp> MongaExpVec;
+typedef MongaVec<MongaDecl> MongaProg;
 
 class MongaAstNode {
+    public:
+        virtual string toStr() const = 0;
 };
+
+string toStr(const MongaAstNode& node);
+string toStr(const string& s);
 
 template <typename T>
 class MongaVec : public MongaAstNode {
-    private:
+    public:
         vector<unique_ptr<T> > items;
 
-    public:
-        MongaVec() {
-
+        void add(T* item) {
+            items.push_back(unique_ptr<T>(item));
         }
 
-        void push_back(T* item) {
-            items.push_back(unique_ptr<T>(item));
+        virtual string toStr() const {
+            auto it = items.begin();
+            auto end = items.end();
+            string s = "(";
+            if (it != end) {
+                s += monga::toStr(**it);
+                for (it++; it != items.end(); it++) {
+                    s += "\n" + monga::toStr(**it);
+                }
+            }
+            return s + ")";
         }
 };
 
@@ -82,17 +97,21 @@ class MongaType : public MongaAstNode {
         void addDimension() {
             ++array_dimensions;
         }
+
+        string toStr() const;
 };
 
 class MongaArg : public MongaAstNode {
     private:
         unique_ptr<MongaType> type;
-        unique_ptr<string> ident;
+        unique_ptr<string> id;
 
     public:
-        MongaArg(MongaType* type, string* ident)
-            : type(unique_ptr<MongaType>(type)), ident(unique_ptr<string>(ident)) {
+        MongaArg(MongaType* type, string* id)
+            : type(unique_ptr<MongaType>(type)), id(unique_ptr<string>(id)) {
         }
+
+        string toStr() const { return "(arg " + type->toStr() + " " + *id + ")"; }
 };
 
 class MongaExp : public MongaAstNode {
@@ -100,11 +119,13 @@ class MongaExp : public MongaAstNode {
 
 class MongaIdentExp : public MongaExp {
     private:
-        unique_ptr<string> ident;
+        unique_ptr<string> id;
 
     public:
-        MongaIdentExp(string* ident) : ident(unique_ptr<string>(ident)) {
+        MongaIdentExp(string* id) : id(unique_ptr<string>(id)) {
         }
+
+        string toStr() const { return *id; }
 };
 
 class MongaIntLiteral : public MongaExp {
@@ -113,7 +134,17 @@ class MongaIntLiteral : public MongaExp {
 
     public:
         MongaIntLiteral(string* s) {
-            // TODO: convert s to long long
+            // TODO: convert
+            // istringstream ss(*s);
+            // ss >> val;
+        }
+
+        string toStr() const {
+            string s = "_";
+            // TODO: convert
+            //ostringstream ss(s);
+            //ss << val;
+            return s;
         }
 };
 
@@ -126,6 +157,11 @@ class MongaFloatLiteral : public MongaExp {
             // TODO: convert s to double
             // val = atof(s->c_str());
         }
+
+        string toStr() const {
+            // TODO: convert
+            return ".";
+        }
 };
 
 class MongaStringLiteral : public MongaExp {
@@ -135,6 +171,8 @@ class MongaStringLiteral : public MongaExp {
     public:
         MongaStringLiteral(string* s) : val(unique_ptr<string>(s)) {
         }
+
+        string toStr() const { return *val; }
 };
 
 class MongaFuncCall : public MongaExp {
@@ -151,6 +189,10 @@ class MongaFuncCall : public MongaExp {
         MongaFuncCall(string* func_ident, MongaExpVec* arg_exps)
             : MongaFuncCall(new MongaIdentExp(func_ident), arg_exps) {
         }
+
+        string toStr() const {
+            return "(" + func_ident->toStr() + " " + arg_exps->toStr() + ")";
+        }
 };
 
 class MongaBinaryExp : public MongaExp {
@@ -161,6 +203,12 @@ class MongaBinaryExp : public MongaExp {
     public:
         MongaBinaryExp(MongaExp* exp1, MongaExp* exp2)
             : exp1(unique_ptr<MongaExp>(exp1)), exp2(unique_ptr<MongaExp>(exp2)) {
+        }
+
+        virtual string operatorStr() const = 0;
+
+        string toStr() const {
+            return "(" + operatorStr() + " " + exp1->toStr() + " " + exp2->toStr() + ")";
         }
 };
 
@@ -182,12 +230,18 @@ class MongaNewStmtExp : public MongaExp {
         MongaNewStmtExp(MongaType* type, MongaExp* exp)
             : type(unique_ptr<MongaType>(type)), exp(unique_ptr<MongaExp>(exp)) {
         }
+
+        string toStr() const {
+            return "(new " + type->toStr() + " " + exp->toStr() + ")";
+        }
 };
 
 class MongaMinusExp : public MongaUnaryExp {
     public:
         MongaMinusExp(MongaExp* exp) : MongaUnaryExp(exp) {
         }
+
+        string toStr() const { return "-" + exp->toStr(); }
 };
 
 class MongaSumExp : public MongaBinaryExp {
@@ -195,78 +249,102 @@ class MongaSumExp : public MongaBinaryExp {
     public:
         MongaSumExp(MongaExp* exp1, MongaExp* exp2) : MongaBinaryExp(exp1, exp2) {
         }
+
+        string operatorStr() const { return "+"; }
 };
 
 class MongaSubExp : public MongaBinaryExp {
     public:
         MongaSubExp(MongaExp* exp1, MongaExp* exp2) : MongaBinaryExp(exp1, exp2) {
         }
+
+        string operatorStr() const { return "-"; }
 };
 
 class MongaMultExp : public MongaBinaryExp {
     public:
         MongaMultExp(MongaExp* exp1, MongaExp* exp2) : MongaBinaryExp(exp1, exp2) {
         }
+
+        string operatorStr() const { return "*"; }
 };
 
 class MongaDivExp : public MongaBinaryExp {
     public:
         MongaDivExp(MongaExp* exp1, MongaExp* exp2) : MongaBinaryExp(exp1, exp2) {
         }
+
+        string operatorStr() const { return "/"; }
 };
 
 class MongaEqExp : public MongaBinaryExp {
     public:
         MongaEqExp(MongaExp* exp1, MongaExp* exp2) : MongaBinaryExp(exp1, exp2) {
         }
+
+        string operatorStr() const { return "=="; }
 };
 
 class MongaGreaterEqExp : public MongaBinaryExp {
     public:
         MongaGreaterEqExp(MongaExp* exp1, MongaExp* exp2) : MongaBinaryExp(exp1, exp2) {
         }
+
+        string operatorStr() const { return ">="; }
 };
 
 class MongaLowerExp : public MongaBinaryExp {
     public:
         MongaLowerExp(MongaExp* exp1, MongaExp* exp2) : MongaBinaryExp(exp1, exp2) {
         }
+
+        string operatorStr() const { return "<"; }
 };
 
 class MongaGreaterExp : public MongaBinaryExp {
     public:
         MongaGreaterExp(MongaExp* exp1, MongaExp* exp2) : MongaBinaryExp(exp1, exp2) {
         }
+
+        string operatorStr() const { return ">"; }
 };
 
 class MongaLowerEqExp : public MongaBinaryExp {
     public:
         MongaLowerEqExp(MongaExp* exp1, MongaExp* exp2) : MongaBinaryExp(exp1, exp2) {
         }
+
+        string operatorStr() const { return "<="; }
 };
 
 class MongaNotExp : public MongaUnaryExp {
     public:
         MongaNotExp(MongaExp* exp) : MongaUnaryExp(exp) {
         }
+
+        string toStr() const { return "!" + exp->toStr(); }
 };
 
 class MongaAndExp : public MongaBinaryExp {
     public:
         MongaAndExp(MongaExp* exp1, MongaExp* exp2) : MongaBinaryExp(exp1, exp2) {
         }
+
+        string operatorStr() const { return "&&"; }
 };
 
 class MongaOrExp : public MongaBinaryExp {
     public:
         MongaOrExp(MongaExp* exp1, MongaExp* exp2) : MongaBinaryExp(exp1, exp2) {
         }
+
+        string operatorStr() const { return "||"; }
 };
 
 class MongaVar : public MongaExp {
     private:
         unique_ptr<MongaExp> exp;
-        vector<unique_ptr<MongaExp> > arr_subscripts;
+        MongaVec<MongaExp> arr_subscripts;
 
     public:
         MongaVar(MongaExp* exp) : exp(unique_ptr<MongaExp>(exp)) {
@@ -276,8 +354,15 @@ class MongaVar : public MongaExp {
         }
 
         MongaVar* push_subscript(MongaExp* subscript) {
-            arr_subscripts.push_back(unique_ptr<MongaExp>(subscript));
+            arr_subscripts.add(subscript);
             return this;
+        }
+
+        string toStr() const {
+            if (arr_subscripts.items.size()) {
+                return "(" + exp->toStr() + " " + arr_subscripts.toStr() + ")";
+            }
+            return exp->toStr();
         }
 };
 
@@ -296,6 +381,11 @@ class MongaIfStmt : public MongaStmt {
             then_block(unique_ptr<MongaBlock>(then_block)),
             else_block(unique_ptr<MongaBlock>(else_block)) {
         }
+
+        string toStr() const {
+            return "(if " + cond_exp->toStr() + "\n" + then_block->toStr() +
+                "\n" + else_block->toStr() + ")";
+        }
 };
 
 class MongaWhileStmt : public MongaStmt {
@@ -307,6 +397,10 @@ class MongaWhileStmt : public MongaStmt {
         MongaWhileStmt(MongaExp* cond_exp, MongaBlock* block)
             : cond_exp(unique_ptr<MongaExp>(cond_exp)),
             block(unique_ptr<MongaBlock>(block)) {
+        }
+        
+        string toStr() const {
+            return "(while " + cond_exp->toStr() + "\n" + block->toStr() + ")";
         }
 };
 
@@ -320,6 +414,10 @@ class MongaAssignStmt : public MongaStmt {
             : var(unique_ptr<MongaVar>(var)),
             rvalue(unique_ptr<MongaExp>(rvalue)) {
         }
+
+        string toStr() const {
+            return "(set " + var->toStr() + " " + rvalue->toStr() + ")";
+        }
 };
 
 class MongaReturnStmt : public MongaStmt {
@@ -329,6 +427,8 @@ class MongaReturnStmt : public MongaStmt {
     public:
         MongaReturnStmt(MongaExp* exp = NULL) : exp(unique_ptr<MongaExp>(exp)) {
         }
+
+        string toStr() const { return "(ret " + exp->toStr() + ")"; }
 };
 
 class MongaExpStmt : public MongaStmt {
@@ -338,6 +438,8 @@ class MongaExpStmt : public MongaStmt {
     public:
         MongaExpStmt(MongaExp* exp) : exp(unique_ptr<MongaExp>(exp)) {
         }
+
+        string toStr() const { return exp->toStr(); }
 };
 
 class MongaDecl : public MongaAstNode {
@@ -352,6 +454,14 @@ class MongaVarDecls : public MongaDecl {
         MongaVarDecls(MongaType* type, MongaIdVec* idents)
             : type(unique_ptr<MongaType>(type)), idents(unique_ptr<MongaIdVec>(idents)) {
         }
+
+        string toStr() const {
+            string s = "(var " + type->toStr();
+            for (auto it = idents->items.begin(); it != idents->items.end(); it++) {
+                s += " " + **it;
+            }
+            return s + ")";
+        }
 };
 
 class MongaFuncDecl : public MongaDecl {
@@ -365,6 +475,11 @@ class MongaFuncDecl : public MongaDecl {
         MongaFuncDecl(MongaType* type, string* id, MongaArgsVec* args, MongaBlock* block)
             : type(unique_ptr<MongaType>(type)), id(unique_ptr<string>(id)),
             args(unique_ptr<MongaArgsVec>(args)), block(unique_ptr<MongaBlock>(block)) {
+        }
+
+        string toStr() const {
+            return "(fun " + type->toStr() + " " + *id + "\n" + args->toStr()
+                + "\n" + monga::toStr(*block) + ")";
         }
 };
 
@@ -382,19 +497,8 @@ class MongaVarDeclsOrStmt : public MongaAstNode {
             is_decl = false;
             node = unique_ptr<MongaStmt>(stmt);
         }
-};
 
-class MongaProg : public MongaAstNode {
-    private:
-        vector<unique_ptr<MongaDecl> > decls;
-
-    public:
-        MongaProg() {
-        }
-
-        void push_back(MongaDecl* decl) {
-            decls.push_back(unique_ptr<MongaDecl>(decl));
-        }
+        string toStr() const { return node->toStr(); }
 };
 
 }; // namespace monga

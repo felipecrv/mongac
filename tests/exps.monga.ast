@@ -1,0 +1,12 @@
+((var (t char 0) ca cb)
+ (fun (t int 0) main 
+  ((arg (t int 0) argc)
+   (arg (t char 2) argv))
+  ((var (t int 0) a b c d)
+   (set a (+ (+ b c) d))
+   (set b (- (+ a c) d))
+   (set c (+ a (* b c)))
+   (set d (* (+ a b) c))
+   (set a (/ (* a b) c))
+   (set b (< a b))
+   (ret a))))

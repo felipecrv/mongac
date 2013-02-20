@@ -38,9 +38,7 @@ static yy_size_t mg_ch_buffer_next_slot = 0, mg_str_buf_pos = 0;
 static char mg_unexpected_char[3];
 
 static void mg_error(const char*, ...);
-#ifdef MG_SCANNER
 static void mg_dump_token(const char*, const char*);
-#endif
 static void mg_debug(const char*, ...);
 static void mg_char_to_printable(char, char*);
 %}
@@ -245,7 +243,6 @@ static void mg_error(const char *fmt, ...) {
     va_end(ap);
 }
 
-#ifdef MG_SCANNER
 static void mg_dump_token(const char* token_name, const char* token_value) {
     if (token_value) {
         printf("%s(%s) ", token_name, token_value);
@@ -253,7 +250,6 @@ static void mg_dump_token(const char* token_name, const char* token_value) {
         printf("%s ", token_name);
     }
 }
-#endif
 
 static void mg_debug(const char* fmt, ...) {
 #ifdef DEBUG
