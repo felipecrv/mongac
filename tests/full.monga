@@ -2,7 +2,9 @@ int a;
 char b;
 /* comment */
 void func(int a) {
-    int b;
+    int b, z;
+    float f;
+    char[] s;
     if (a) {
         return;
     } else b = a;
@@ -11,14 +13,11 @@ void func(int a) {
     }
     /* multiline
      * comment */
-    float f;
     f = 1.;
     f = 10.67; b = 0xdeadBEEF;
     a = b; b = a;
     a = a + b * a / b - 1;
-    int z;
     z = a <= b || a >= b;
-    char[] s;
     s = "Felipe";
     s = "foo\"bar";
     s = "multiline \

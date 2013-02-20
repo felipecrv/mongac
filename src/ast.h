@@ -15,7 +15,6 @@ class MongaExp;
 class MongaIdentExp;
 class MongaVar;
 class MongaStmt;
-class MongaVarDeclsOrStmt;
 class MongaIfStmt;
 class MongaWhileStmt;
 class MongaAssignStmt;
@@ -24,7 +23,7 @@ class MongaExpStmt;
 class MongaIntLiteral;
 class MongaFloatLiteral;
 class MongaStringLiteral;
-class MongaFuncCall;
+class MongaFuncCallExp;
 class MongaBinaryExp;
 class MongaUnaryExp;
 class MongaNewStmtExp;
@@ -43,14 +42,18 @@ class MongaAndExp;
 class MongaOrExp;
 class MongaType;
 class MongaDecl;
-class MongaVarDecls;
+class MongaVarDecl;
 class MongaFuncDecl;
+class MongaBlock;
+class MongaCommand;
 
 template <typename T> class MongaVec;
 typedef MongaVec<std::string> MongaIdVec;
 typedef MongaVec<MongaArg> MongaArgsVec;
-typedef MongaVec<MongaVarDeclsOrStmt> MongaBlock;
 typedef MongaVec<MongaExp> MongaExpVec;
+typedef MongaVec<MongaVarDecl> MongaVarDeclVec;
+typedef MongaVec<MongaCommand> MongaCommandVec;
+
 typedef MongaVec<MongaDecl> MongaProg;
 
 class MongaAstNode {
@@ -175,19 +178,19 @@ class MongaStringLiteral : public MongaExp {
         string toStr() const { return *val; }
 };
 
-class MongaFuncCall : public MongaExp {
+class MongaFuncCallExp : public MongaExp {
     private:
         unique_ptr<MongaIdentExp> func_ident;
         unique_ptr<MongaExpVec> arg_exps;
 
     public:
-        MongaFuncCall(MongaIdentExp* func_ident, MongaExpVec* arg_exps)
+        MongaFuncCallExp(MongaIdentExp* func_ident, MongaExpVec* arg_exps)
             : func_ident(unique_ptr<MongaIdentExp>(func_ident)),
             arg_exps(unique_ptr<MongaExpVec>(arg_exps)) {
         }
 
-        MongaFuncCall(string* func_ident, MongaExpVec* arg_exps)
-            : MongaFuncCall(new MongaIdentExp(func_ident), arg_exps) {
+        MongaFuncCallExp(string* func_ident, MongaExpVec* arg_exps)
+            : MongaFuncCallExp(new MongaIdentExp(func_ident), arg_exps) {
         }
 
         string toStr() const {
@@ -366,6 +369,22 @@ class MongaVar : public MongaExp {
         }
 };
 
+class MongaBlock : public MongaAstNode {
+    private:
+        unique_ptr<MongaVarDeclVec> vars;
+        unique_ptr<MongaCommandVec> commands;
+
+    public:
+        MongaBlock(MongaVarDeclVec* var_decls, MongaCommandVec* commands)
+            : vars(unique_ptr<MongaVarDeclVec>(var_decls)),
+            commands(unique_ptr<MongaCommandVec>(commands)) {
+        }
+
+        string toStr() const {
+            return "(" + vars->toStr() + "\n" + commands->toStr() + ")";
+        }
+};
+
 class MongaStmt : public MongaAstNode {
 };
 
@@ -431,12 +450,13 @@ class MongaReturnStmt : public MongaStmt {
         string toStr() const { return "(ret " + exp->toStr() + ")"; }
 };
 
-class MongaExpStmt : public MongaStmt {
+class MongaFuncCallStmt : public MongaStmt {
     private:
-        unique_ptr<MongaExp> exp;
+        unique_ptr<MongaFuncCallExp> exp;
 
     public:
-        MongaExpStmt(MongaExp* exp) : exp(unique_ptr<MongaExp>(exp)) {
+        MongaFuncCallStmt(MongaFuncCallExp* exp)
+            : exp(unique_ptr<MongaFuncCallExp>(exp)) {
         }
 
         string toStr() const { return exp->toStr(); }
@@ -445,13 +465,13 @@ class MongaExpStmt : public MongaStmt {
 class MongaDecl : public MongaAstNode {
 };
 
-class MongaVarDecls : public MongaDecl {
+class MongaVarDecl : public MongaDecl {
     private:
         unique_ptr<MongaType> type;
         unique_ptr<MongaIdVec> idents;
 
     public:
-        MongaVarDecls(MongaType* type, MongaIdVec* idents)
+        MongaVarDecl(MongaType* type, MongaIdVec* idents)
             : type(unique_ptr<MongaType>(type)), idents(unique_ptr<MongaIdVec>(idents)) {
         }
 
@@ -483,22 +503,34 @@ class MongaFuncDecl : public MongaDecl {
         }
 };
 
-class MongaVarDeclsOrStmt : public MongaAstNode {
+class MongaBlockStmt : public MongaStmt {
     private:
-        bool is_decl;
-        unique_ptr<MongaAstNode> node;
+        unique_ptr<MongaBlock> block;
 
     public:
-        MongaVarDeclsOrStmt(MongaVarDecls* decls)
-            : is_decl(true), node(unique_ptr<MongaVarDecls>(decls)) {
+        MongaBlockStmt(MongaBlock* block) : block(unique_ptr<MongaBlock>(block)) {
         }
 
-        MongaVarDeclsOrStmt(MongaStmt* stmt) {
-            is_decl = false;
-            node = unique_ptr<MongaStmt>(stmt);
+        string toStr() const {
+            return block->toStr();
+        }
+};
+
+class MongaCommand : public MongaAstNode {
+    private:
+        unique_ptr<MongaStmt> stmt;
+
+    public:
+        MongaCommand(MongaStmt* stmt) : stmt(unique_ptr<MongaStmt>(stmt)) {
         }
 
-        string toStr() const { return node->toStr(); }
+        MongaCommand(MongaBlock* block)
+            : stmt(unique_ptr<MongaBlockStmt>(new MongaBlockStmt(block))) {
+        }
+
+        string toStr() const {
+            return stmt->toStr();
+        }
 };
 
 }; // namespace monga

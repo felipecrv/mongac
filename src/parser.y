@@ -19,14 +19,19 @@
 %union {
     MongaProg *prog;
     MongaDecl* decl;
+    MongaVarDecl* var_decl;
+    MongaVarDeclVec* var_decl_vec;
     MongaType* type;
     MongaIdVec* id_vec;
-    MongaArgsVec* args;
     MongaArg* arg;
-    MongaBlock* block;
+    MongaArgsVec* args;
     MongaStmt* stmt;
+    MongaCommand* command;
+    MongaCommandVec* command_vec;
+    MongaBlock* block;
     MongaExp* exp;
     MongaExpVec* exp_vec;
+    MongaFuncCallExp* func_call_exp;
     std::string* string;
     int token;
 }
@@ -48,15 +53,19 @@
  * previamente definida */
 %type <prog> programa
 %type <decl> declaracao dec_funcao
-%type <decl> dec_variaveis 
+%type <var_decl> dec_variaveis
 %type <type> tipo
 %type <token> tipo_base
 %type <id_vec> lista_nomes
 %type <args> parametros parametros_nao_vazio
 %type <arg> parametro
-%type <block> bloco var_decls_or_stmts comando
-%type <stmt> simple_stmt
-%type <exp> exp chamada var
+%type <block> bloco
+%type <var_decl_vec> local_var_decls
+%type <stmt> stmt
+%type <command> comando
+%type <command_vec> comandos
+%type <exp> exp var
+%type <func_call_exp> chamada
 %type <exp_vec> lista_exp lista_exp_nao_vazia
 
 /* Precedência dos operadores */
@@ -76,11 +85,11 @@ programa : /* empty */ { $$ = program = new MongaProg(); }
          | programa declaracao { $<prog>1->add($<decl>2); }
          ;
 
-declaracao : dec_variaveis
+declaracao : dec_variaveis { $$ = $<var_decl>1; }
            | dec_funcao
            ;
 
-dec_variaveis : tipo lista_nomes PTVIRG { $$ = new MongaVarDecls($<type>1, $<id_vec>2); }
+dec_variaveis : tipo lista_nomes PTVIRG { $$ = new MongaVarDecl($<type>1, $<id_vec>2); }
               ;
 
 tipo : tipo_base { $$ = new MongaType($1); }
@@ -111,27 +120,29 @@ parametros_nao_vazio : parametro { $$ = new MongaArgsVec(); $$->add($<arg>1); }
 parametro : tipo ID { $$ = new MongaArg($<type>1, $2); }
           ;
 
-bloco : ACHAVE var_decls_or_stmts FCHAVE { $$ = $<block>2; }
+bloco : ACHAVE local_var_decls comandos FCHAVE { $$ = new MongaBlock($<var_decl_vec>2, $<command_vec>3); }
       ;
 
-var_decls_or_stmts : dec_variaveis { $$ = new MongaBlock(); $$->add(new MongaVarDeclsOrStmt((MongaVarDecls *) $<decl>1)); }
-                   | simple_stmt { $$ = new MongaBlock(); $$->add(new MongaVarDeclsOrStmt($<stmt>1)); }
-                   | var_decls_or_stmts dec_variaveis { $1->add(new MongaVarDeclsOrStmt((MongaVarDecls *) $<decl>2)); }
-                   | var_decls_or_stmts simple_stmt { $1->add(new MongaVarDeclsOrStmt($<stmt>2)); }
-                   ;
+local_var_decls : /* empty */ { $$ = new MongaVarDeclVec(); }
+                | local_var_decls dec_variaveis { $<var_decl_vec>1->add($<var_decl>2); }
+                ;
 
-simple_stmt : IF APAR exp FPAR comando { $$ = new MongaIfStmt($<exp>3, $<block>5); }
-            | IF APAR exp FPAR comando ELSE comando { $$ = new MongaIfStmt($<exp>3, $<block>5, $<block>6); }
-            | WHILE APAR exp FPAR comando { $$ = new MongaWhileStmt($<exp>3, $<block>5); }
-            | var ATRIB exp PTVIRG { $$ = new MongaAssignStmt((MongaVar *) $<exp>1, $<exp>3); }
-            | RETURN PTVIRG { $$ = new MongaReturnStmt(); }
-            | RETURN exp PTVIRG { $$ = new MongaReturnStmt($<exp>2); }
-            | chamada PTVIRG { $$ = new MongaExpStmt($<exp>1); }
-            ;
+comandos : /* empty */ { $$ = new MongaCommandVec(); }
+         | comandos comando { $<command_vec>1->add($<command>2); }
+         ;
 
-comando : simple_stmt { $$ = new MongaBlock(); $$->add(new MongaVarDeclsOrStmt($<stmt>1)); }
-        | bloco
+comando : stmt { $$ = new MongaCommand($<stmt>1); }
         ;
+
+stmt : IF APAR exp FPAR comando { $$ = new MongaIfStmt($<exp>3, $<block>5); }
+     | IF APAR exp FPAR comando ELSE comando { $$ = new MongaIfStmt($<exp>3, $<block>5, $<block>6); }
+     | WHILE APAR exp FPAR comando { $$ = new MongaWhileStmt($<exp>3, $<block>5); }
+     | var ATRIB exp PTVIRG { $$ = new MongaAssignStmt((MongaVar *) $<exp>1, $<exp>3); }
+     | RETURN PTVIRG { $$ = new MongaReturnStmt(); }
+     | RETURN exp PTVIRG { $$ = new MongaReturnStmt($<exp>2); }
+     | chamada PTVIRG { $$ = new MongaFuncCallStmt($<func_call_exp>1); }
+     | bloco { $$ = new MongaBlockStmt($<block>1); }
+     ;
 
 var : ID { $$ = new MongaVar($1); }
     | var ACOL exp FCOL { $$ = ((MongaVar *) $<exp>1)->push_subscript($<exp>3); }
@@ -149,7 +160,7 @@ exp : NUMINT { $$ = new MongaIntLiteral($<string>1); }
     | STRING { $$ = new MongaStringLiteral($<string>1); }
     | var
     | APAR exp FPAR { $$ = $<exp>2; }
-    | chamada
+    | chamada { $$ = $<func_call_exp>1; }
     | NEW tipo ACOL exp FCOL { $$ = new MongaNewStmtExp($<type>1, $<exp>2); }
     | SUB exp { $$ = new MongaMinusExp($<exp>2); }
     | exp SOMA exp { $$ = new MongaSumExp($<exp>1, $<exp>3); }
@@ -166,7 +177,7 @@ exp : NUMINT { $$ = new MongaIntLiteral($<string>1); }
     | exp OU exp { $$ = new MongaOrExp($<exp>1, $<exp>3); }
     ;
 
-chamada : ID APAR lista_exp FPAR { $$ = new MongaFuncCall($1, $<exp_vec>3); }
+chamada : ID APAR lista_exp FPAR { $$ = new MongaFuncCallExp($1, $<exp_vec>3); }
         ;
 
 lista_exp : /* empty */ { $$ = new MongaExpVec(); }
