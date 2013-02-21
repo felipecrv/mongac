@@ -237,7 +237,7 @@ static void mg_error(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     mg_scan_errno = 1;
-    fprintf(stderr, "error:%d: ", yylineno);
+    fprintf(stderr, "%d:error: ", yylineno);
     vfprintf(stderr, fmt, ap);
     putchar('\n');
     va_end(ap);

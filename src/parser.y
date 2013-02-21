@@ -9,7 +9,7 @@
     MongaProg* program;
 
     void yyerror(const char *s) {
-        printf("error:%d: %s\n", yylineno, s);
+        fprintf(stderr, "%d:error: %s\n", yylineno, s);
     }
 %}
 
