@@ -69,12 +69,13 @@
 %type <exp_vec> lista_exp lista_exp_nao_vazia
 
 /* Precedência dos operadores */
+%right ATRIB
+%left OU
+%left E
+%left IGUAL
+%left MENORQ MENORIG MAIORQ MAIORIG
 %left SOMA SUB
 %left MULT DIV
-%left E OU
-%left IGUAL MENORIG MAIORIG MENORQ MAIORQ
-%right ATRIB
-
 %nonassoc NAO
 
 %start programa
