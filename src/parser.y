@@ -134,10 +134,10 @@ comandos : /* empty */ { $$ = new MongaCommandVec(); }
 comando : stmt { $$ = new MongaCommand($<stmt>1); }
         ;
 
-stmt : IF APAR exp FPAR comando { $$ = new MongaIfStmt($<exp>3, $<block>5); }
-     | IF APAR exp FPAR comando ELSE comando { $$ = new MongaIfStmt($<exp>3, $<block>5, $<block>6); }
+stmt : IF APAR exp FPAR comando { $$ = new MongaIfStmt($<exp>3, $<command>5); }
+     | IF APAR exp FPAR comando ELSE comando { $$ = new MongaIfStmt($<exp>3, $<command>5, $<command>7); }
      | WHILE APAR exp FPAR comando { $$ = new MongaWhileStmt($<exp>3, $<block>5); }
-     | var ATRIB exp PTVIRG { $$ = new MongaAssignStmt((MongaVar *) $<exp>1, $<exp>3); }
+     | var ATRIB exp PTVIRG { $$ = new MongaAssignStmt((MongaVar*) $<exp>1, $<exp>3); }
      | RETURN PTVIRG { $$ = new MongaReturnStmt(); }
      | RETURN exp PTVIRG { $$ = new MongaReturnStmt($<exp>2); }
      | chamada PTVIRG { $$ = new MongaFuncCallStmt($<func_call_exp>1); }
@@ -161,7 +161,7 @@ exp : NUMINT { $$ = new MongaIntLiteral($<string>1); }
     | var
     | APAR exp FPAR { $$ = $<exp>2; }
     | chamada { $$ = $<func_call_exp>1; }
-    | NEW tipo ACOL exp FCOL { $$ = new MongaNewStmtExp($<type>1, $<exp>2); }
+    | NEW tipo ACOL exp FCOL { $$ = new MongaNewStmtExp($<type>2, $<exp>4); }
     | SUB exp { $$ = new MongaMinusExp($<exp>2); }
     | exp SOMA exp { $$ = new MongaSumExp($<exp>1, $<exp>3); }
     | exp SUB exp { $$ = new MongaSubExp($<exp>1, $<exp>3); }
@@ -172,7 +172,7 @@ exp : NUMINT { $$ = new MongaIntLiteral($<string>1); }
     | exp MAIORIG exp { $$ = new MongaGreaterEqExp($<exp>1, $<exp>3); }
     | exp MENORQ exp { $$ = new MongaLowerExp($<exp>1, $<exp>3); }
     | exp MAIORQ exp { $$ = new MongaGreaterExp($<exp>1, $<exp>3); }
-    | NAO exp { $$ = new MongaNotExp($<exp>1); }
+    | NAO exp { $$ = new MongaNotExp($<exp>2); }
     | exp E exp { $$ = new MongaAndExp($<exp>1, $<exp>3); }
     | exp OU exp { $$ = new MongaOrExp($<exp>1, $<exp>3); }
     ;

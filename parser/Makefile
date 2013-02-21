@@ -33,6 +33,10 @@ test: mongaparser
 	./$< < ../tests/full.monga
 	./$< < ../tests/string.monga
 	./$< < ../tests/exps.monga
+	./$< --dump-ast < ../tests/basic.monga > /dev/null
+	./$< --dump-ast < ../tests/full.monga > /dev/null
+	./$< --dump-ast < ../tests/string.monga > /dev/null
+	./$< --dump-ast < ../tests/exps.monga > /dev/null
 	./$< --dump-ast < ../tests/exps.monga > out.ast
 	$(DIFF) ../tests/exps.monga.ast out.ast
 	rm -f out.ast

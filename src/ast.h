@@ -388,22 +388,55 @@ class MongaBlock : public MongaAstNode {
 class MongaStmt : public MongaAstNode {
 };
 
-class MongaIfStmt : public MongaStmt {
+class MongaBlockStmt : public MongaStmt {
     private:
-        unique_ptr<MongaExp> cond_exp;
-        unique_ptr<MongaBlock> then_block;
-        unique_ptr<MongaBlock> else_block;
+        unique_ptr<MongaBlock> block;
 
     public:
-        MongaIfStmt(MongaExp* cond_exp, MongaBlock* then_block, MongaBlock* else_block = NULL)
-            : cond_exp(unique_ptr<MongaExp>(cond_exp)),
-            then_block(unique_ptr<MongaBlock>(then_block)),
-            else_block(unique_ptr<MongaBlock>(else_block)) {
+        MongaBlockStmt(MongaBlock* block) : block(unique_ptr<MongaBlock>(block)) {
         }
 
         string toStr() const {
-            return "(if " + cond_exp->toStr() + "\n" + then_block->toStr() +
-                "\n" + else_block->toStr() + ")";
+            return block->toStr();
+        }
+};
+
+class MongaCommand : public MongaAstNode {
+    private:
+        unique_ptr<MongaStmt> stmt;
+
+    public:
+        MongaCommand(MongaStmt* stmt) : stmt(unique_ptr<MongaStmt>(stmt)) {
+        }
+
+        MongaCommand(MongaBlock* block)
+            : stmt(unique_ptr<MongaBlockStmt>(new MongaBlockStmt(block))) {
+        }
+
+        string toStr() const {
+            return stmt->toStr();
+        }
+};
+
+class MongaIfStmt : public MongaStmt {
+    private:
+        unique_ptr<MongaExp> cond_exp;
+        unique_ptr<MongaCommand> then_cmd;
+        unique_ptr<MongaCommand> else_cmd;
+
+    public:
+        MongaIfStmt(MongaExp* cond_exp, MongaCommand* then_cmd, MongaCommand* else_cmd = NULL)
+            : cond_exp(unique_ptr<MongaExp>(cond_exp)),
+            then_cmd(unique_ptr<MongaCommand>(then_cmd)),
+            else_cmd(unique_ptr<MongaCommand>(else_cmd)) {
+        }
+
+        string toStr() const {
+            string s = "(if " + cond_exp->toStr() + "\n" + then_cmd->toStr();
+            if (else_cmd) {
+                s += "\n" + else_cmd->toStr();
+            }
+            return s + ")";
         }
 };
 
@@ -447,7 +480,11 @@ class MongaReturnStmt : public MongaStmt {
         MongaReturnStmt(MongaExp* exp = NULL) : exp(unique_ptr<MongaExp>(exp)) {
         }
 
-        string toStr() const { return "(ret " + exp->toStr() + ")"; }
+        string toStr() const { 
+            if (exp == NULL) {
+                return "ret";
+            }
+            return "(ret " + exp->toStr() + ")"; }
 };
 
 class MongaFuncCallStmt : public MongaStmt {
@@ -500,36 +537,6 @@ class MongaFuncDecl : public MongaDecl {
         string toStr() const {
             return "(fun " + type->toStr() + " " + *id + "\n" + args->toStr()
                 + "\n" + monga::toStr(*block) + ")";
-        }
-};
-
-class MongaBlockStmt : public MongaStmt {
-    private:
-        unique_ptr<MongaBlock> block;
-
-    public:
-        MongaBlockStmt(MongaBlock* block) : block(unique_ptr<MongaBlock>(block)) {
-        }
-
-        string toStr() const {
-            return block->toStr();
-        }
-};
-
-class MongaCommand : public MongaAstNode {
-    private:
-        unique_ptr<MongaStmt> stmt;
-
-    public:
-        MongaCommand(MongaStmt* stmt) : stmt(unique_ptr<MongaStmt>(stmt)) {
-        }
-
-        MongaCommand(MongaBlock* block)
-            : stmt(unique_ptr<MongaBlockStmt>(new MongaBlockStmt(block))) {
-        }
-
-        string toStr() const {
-            return stmt->toStr();
         }
 };
 
