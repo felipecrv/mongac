@@ -9,7 +9,7 @@ using namespace monga;
 namespace monga {
 using namespace std;
 
-string toStr(const MongaAstNode& node) {
+string toStr(const AstNode& node) {
     return node.toStr();
 }
 
@@ -17,7 +17,7 @@ string toStr(const string& s) {
     return s;
 }
 
-string MongaType::toStr() const {
+string Type::toStr() const {
     string type;
     switch (type_tok) {
         case INT:

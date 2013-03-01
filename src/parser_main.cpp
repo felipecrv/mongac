@@ -4,7 +4,7 @@
 #include "ast.h"
 using namespace monga;
 
-extern MongaProg* program;
+extern Prog* program;
 
 extern int yyparse();
 
