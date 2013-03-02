@@ -165,10 +165,23 @@ class Vec : public AstNode {
 };
 
 class Env {
+    friend class EnvScopeGuard;
+
     typedef map<string, shared_ptr<Type> > Scope;
 
     private:
         vector<Scope> scopes;
+
+        void pushScope() {
+            Scope scope;
+            scopes.push_back(scope);
+            LOG("push scope (" << (scopes.size() - 1) << ')');
+        }
+
+        void popScope() {
+            scopes.pop_back();
+            LOG("pop scope");
+        }
 
     public:
         shared_ptr<Type> findSymbolType(const string& ident) {
@@ -185,23 +198,21 @@ class Env {
             }
         }
 
-        void pushScope() {
-            Scope scope;
-            scopes.push_back(scope);
-            LOG("push scope (" << (scopes.size() - 1) << ')');
-        }
-
-        void popScope() {
-            scopes.pop_back();
-            LOG("pop scope");
-        }
-
         void addSymbol(const std::string& ident, shared_ptr<Type> type) {
             // TODO: check it's been declared before (not here)
             scopes[scopes.size() - 1][ident] = type;
             LOG("add symbol \"" << ident << ": " << type->typeExp() <<
                     "\" to current scope (" << (scopes.size() - 1) << ")");
         }
+};
+
+class EnvScopeGuard {
+    private:
+        Env* env;
+
+    public:
+        EnvScopeGuard(Env* _env) : env(_env) { _env->pushScope(); }
+        ~EnvScopeGuard() { env->popScope(); }
 };
 
 class Arg : public AstNode {
@@ -954,11 +965,10 @@ class Prog : public Vec<Decl> {
     public:
         shared_ptr<Type> typeCheck(Env* env) {
             LOG("typechecking program");
-            env->pushScope();
+            EnvScopeGuard g(env);
             for (auto it = items.begin(); it != items.end(); it++) {
                 (*it)->typeCheck(env);
             }
-            env->popScope();
             return the_void_type();
         }
 };

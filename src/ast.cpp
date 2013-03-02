@@ -171,7 +171,7 @@ shared_ptr<Type> StringLiteral::typeCheck(Env* env) {
 }
 
 shared_ptr<Type> Block::typeCheck(Env* env) {
-    env->pushScope();
+    EnvScopeGuard g(env);
     this->vars->typeCheck(env);
 
     shared_ptr<Type> block_type(new Type(VOID));
@@ -182,8 +182,6 @@ shared_ptr<Type> Block::typeCheck(Env* env) {
             block_type = t;
         }
     }
-
-    env->popScope();
 
     LOG("block returns \"" << block_type->typeExp() << '"');
     return block_type;
@@ -216,7 +214,7 @@ shared_ptr<Type> FuncDecl::typeCheck(Env* env) {
 
     // create a new scope, add the arguments to this scope and then type
     // check the function block
-    env->pushScope();
+    EnvScopeGuard g(env);
     for (auto it = args->items.begin(); it != args->items.end(); it++) {
         auto t = shared_ptr<Type>(new Type((*it)->type.get()));
         env->addSymbol(*(*it)->id, t);
@@ -225,7 +223,6 @@ shared_ptr<Type> FuncDecl::typeCheck(Env* env) {
     if (!ret_type->canSubstituteBy(block_type)) {
         // TODO: error
     }
-    env->popScope();
 
     return func_type;
 }
