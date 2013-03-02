@@ -162,7 +162,7 @@ exp : NUMINT { $$ = new IntLiteral($<string>1); }
     | var
     | APAR exp FPAR { $$ = $<exp>2; }
     | chamada { $$ = $<func_call_exp>1; }
-    | NEW tipo ACOL exp FCOL { $$ = new NewStmtExp($<type>2, $<exp>4); }
+    | NEW tipo ACOL exp FCOL { $$ = new NewExp($<type>2, $<exp>4); }
     | SUB exp { $$ = new MinusExp($<exp>2); }
     | exp SOMA exp { $$ = new SumExp($<exp>1, $<exp>3); }
     | exp SUB exp { $$ = new SubExp($<exp>1, $<exp>3); }

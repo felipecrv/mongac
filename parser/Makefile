@@ -4,13 +4,16 @@ YACC=bison
 YFLAGS=--verbose --defines=parser.h
 DIFF=diff -u -w -B
 
-mongaparser: parser_main.o parser.o tokens.o ast.o
-	$(CXX) $(LDFLAGS) $(LOADLIBS) $(LDLIBS) parser_main.o parser.o tokens.o ast.o -o $@
+mongaparser: parser_main.o parser.o tokens.o ast.o exception.o
+	$(CXX) $(LDFLAGS) $(LOADLIBS) $(LDLIBS) parser_main.o parser.o tokens.o ast.o exception.o -o $@
 
 parser_main.o: ../src/parser_main.cpp ../src/ast.h parser.h
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 ast.o: ../src/ast.cpp ../src/ast.h parser.h
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+exception.o: ../src/exception.cpp ../src/ast.h ../src/exception.h
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 %.o: %.cpp ../src/ast.h parser.h
