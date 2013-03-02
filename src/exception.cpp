@@ -6,7 +6,7 @@ using namespace monga;
 using namespace std;
 
 const char* InvalidAssignExn::what() const noexcept {
-    string s = "assignment type mismatch, \"" + lvalue_type->toHumanReadableStr() +
-        "\" is imcompatible with \"" + rvalue_type->toHumanReadableStr() + "\"";
+    string s = "assignment type mismatch, \"" + lvalue_type->typeExp() +
+        "\" is imcompatible with \"" + rvalue_type->typeExp() + "\"";
     return s.c_str();
 }

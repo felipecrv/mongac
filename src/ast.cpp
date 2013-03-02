@@ -9,13 +9,8 @@ using namespace monga;
 namespace monga {
 using namespace std;
 
-string toStr(const AstNode& node) {
-    return node.toStr();
-}
-
-string toStr(const string& s) {
-    return s;
-}
+string toStr(const AstNode& node) { return node.toStr(); }
+string toStr(const string& s) { return s; }
 
 shared_ptr<Type> resolve_return_type(shared_ptr<Type> t1, shared_ptr<Type> t2) {
     if (t1->isVoid()) {
@@ -30,26 +25,55 @@ shared_ptr<Type> resolve_return_type(shared_ptr<Type> t1, shared_ptr<Type> t2) {
     return t1;
 }
 
+shared_ptr<Type> the_void_type() {
+    static shared_ptr<Type> void_t_ptr(new Type(VOID));
+    return void_t_ptr;
+}
+
 shared_ptr<Type> AstNode::typeCheck(Env* env) {
-    return shared_ptr<Type>(new Type(VOID));
+    return the_void_type();
 }
 
-bool Type::isReal() const { return type_tok == FLOAT; }
-bool Type::isIntegral() const { return type_tok == INT || type_tok == CHAR; }
-bool Type::isEqualityType() const {
-    return type_tok == INT || type_tok == CHAR;
-    // TODO: fix it
-    return
-        ((this->type_tok == INT || this->type_tok == CHAR) && this->array_dimensions == 0) ||
-        (this->type_tok == CHAR && this->array_dimensions == 1);
-
+bool Type::isVoid() const { return type_tok == VOID; }
+bool Type::isReal() const { return type_tok == FLOAT && this->arr_dim == 0; }
+bool Type::isIntegral() const {
+    return (type_tok == INT || type_tok == CHAR) && this->arr_dim == 0;
 }
-bool Type::isOrderedType() const {
-    return type_tok == INT || type_tok == FLOAT || type_tok == CHAR;
-    // TODO: fix it
+bool Type::isNumerical() const {
     return
-        ((this->type_tok == INT || this->type_tok == CHAR || this->type_tok == FLOAT) && this->array_dimensions == 0) ||
-        (this->type_tok == CHAR && this->array_dimensions == 1);
+        (type_tok == INT || type_tok == CHAR || type_tok == FLOAT) &&
+        this->arr_dim == 0;
+}
+bool Type::isEqType() const {
+    return
+        (type_tok == CHAR && this->arr_dim <= 1) || // string is eq type
+        (type_tok == INT && this->arr_dim == 0);
+}
+bool Type::isOrdType() const {
+    return
+        (type_tok == CHAR && this->arr_dim <= 1) || // string is ord type
+        ((type_tok == INT || type_tok == FLOAT) && this->arr_dim == 0);
+}
+
+// we need a type_tok that's not equal to VOID, INT, FLOAT, or CHAR
+BoolType::BoolType() : Type(IF) {}
+BoolType::BoolType(BoolType* t) : Type(t) {}
+FuncType::FuncType(TypeVec* arg_types, Type* ret_type)
+    : Type(RETURN),
+    arg_types(shared_ptr<TypeVec>(arg_types)),
+    ret_type(shared_ptr<Type>(ret_type)) {}
+FuncType::FuncType(FuncType* t)
+    : Type(t), arg_types(t->arg_types), ret_type(t->ret_type) {}
+
+bool Type::canSubstituteBy(shared_ptr<Type> replacement) const {
+    if (this->getArrDim() != replacement->getArrDim()) {
+        return false;
+    }
+    if (this->isIntegral() && replacement->isReal()) {
+        return false;
+    }
+    // TODO: implement this
+    return true;
 }
 
 string Type::toStr() const {
@@ -67,17 +91,23 @@ string Type::toStr() const {
         case VOID:
             type = "void";
             break;
+        case IF:
+            type = "bool";
+            break;
+        case RETURN: // FuncType overrides typeExp()
+            type = "<FUNC>";
+            break;
         default:
             type = "<TYPE>";
             break;
     }
 
     char dim[20];
-    sprintf(dim, "%d", array_dimensions);
+    sprintf(dim, "%d", arr_dim);
     return "(t " + type + " " + string(dim) + ")";
 }
 
-string Type::toHumanReadableStr() const {
+string Type::typeExp() const {
     string type;
     switch (type_tok) {
         case INT:
@@ -92,13 +122,36 @@ string Type::toHumanReadableStr() const {
         case VOID:
             type = "void";
             break;
+        case IF:
+            type = "bool";
+            break;
+        case RETURN: // FuncType overrides typeExp()
+            type = "FUNC";
+            break;
         default:
-            type = "<TYPE>";
+            type = "TYPE";
             break;
     }
-    for (int i = 0; i < array_dimensions; i++) {
+    for (int i = 0; i < arr_dim; i++) {
         type += "[]";
     }
+    return type;
+}
+
+string FuncType::toStr() const {
+    string s = "(t " + arg_types->toStr() + " " + ret_type->toStr() + ")";
+    return s;
+}
+
+string FuncType::typeExp() const {
+    string type = "(";
+    for (auto it = arg_types->items.begin(); it != arg_types->items.end();)  {
+        type += (*it)->typeExp();
+        if (++it != arg_types->items.end()) {
+            type += ", ";
+        }
+    }
+    type += ") -> " + ret_type->typeExp();
     return type;
 }
 
@@ -132,7 +185,7 @@ shared_ptr<Type> Block::typeCheck(Env* env) {
 
     env->popScope();
 
-    LOG("block returns \"" << block_type->toHumanReadableStr() << '"');
+    LOG("block returns \"" << block_type->typeExp() << '"');
     return block_type;
 }
 
@@ -143,7 +196,7 @@ shared_ptr<Type> VarDecl::typeCheck(Env* env) {
             ident_it++) {
         env->addSymbol(**ident_it, symbol_type);
     }
-    return shared_ptr<Type>(new Type(VOID));
+    return the_void_type();
 }
 
 shared_ptr<Type> FuncDecl::typeCheck(Env* env) {

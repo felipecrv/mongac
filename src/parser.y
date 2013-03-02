@@ -94,7 +94,7 @@ dec_variaveis : tipo lista_nomes PTVIRG { $$ = new VarDecl($<type>1, $<id_vec>2)
               ;
 
 tipo : tipo_base { $$ = new Type($1); }
-     | tipo ACOL FCOL { $<type>1->addDimension(); $$ = $<type>1; }
+     | tipo ACOL FCOL { $<type>1->addArrDim(); $$ = $<type>1; }
      ;
 
 tipo_base : INT

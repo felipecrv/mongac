@@ -14,18 +14,12 @@ using namespace std;
 
 #define LOG(os_ops)  std::cout << __FILE__ << ":" << __LINE__ << ": " << os_ops << std::endl
 
-class Env;
 class AstNode;
+class Type;
+class Env;
 class Arg;
 class Exp;
 class IdentExp;
-class Var;
-class Stmt;
-class IfStmt;
-class WhileStmt;
-class AssignStmt;
-class ReturnStmt;
-class ExpStmt;
 class IntLiteral;
 class FloatLiteral;
 class StringLiteral;
@@ -46,12 +40,17 @@ class LowerEqExp;
 class NotExp;
 class AndExp;
 class OrExp;
-class Type;
+class Var;
 class Decl;
 class VarDecl;
-class FuncDecl;
 class Block;
+class Stmt;
 class Command;
+class IfStmt;
+class WhileStmt;
+class AssignStmt;
+class ReturnStmt;
+class FuncDecl;
 
 template <typename T> class Vec;
 typedef Vec<string> IdVec;
@@ -63,7 +62,7 @@ typedef Vec<Command> CommandVec;
 class AstNode {
     public:
         virtual string toStr() const = 0;
-        virtual shared_ptr<Type> typeCheck(Env* env);
+        virtual shared_ptr<Type> typeCheck(Env*);
 };
 
 string toStr(const AstNode& node);
@@ -75,45 +74,94 @@ class Type : public AstNode {
 
     private:
         int type_tok;
-        int array_dimensions;
+        int arr_dim;
 
     public:
-        Type() : array_dimensions(0) {
-        }
+        Type(int type_tok, int arr_dim = 0)
+            : type_tok(type_tok), arr_dim(arr_dim) {}
 
-        Type(int type_tok, int arr_dimensions = 0)
-            : type_tok(type_tok), array_dimensions(arr_dimensions) {
-        }
-
-        Type(Type* t)
-            : type_tok(t->type_tok), array_dimensions(t->array_dimensions) {
-        }
+        Type(Type* t) : type_tok(t->type_tok), arr_dim(t->arr_dim) {}
 
         virtual bool isFuncType() const { return false; }
         virtual bool isBool() const { return false; }
-        virtual bool isVoid() const { return type_tok == 266; }
+        virtual bool isVoid() const;
         virtual bool isReal() const;
         virtual bool isIntegral() const;
-        virtual bool isEqualityType() const;
-        virtual bool isOrderedType() const;
-        bool isNumerical() const { return isReal() || isIntegral(); }
+        virtual bool isNumerical() const;
+        virtual bool isEqType() const;
+        virtual bool isOrdType() const;
 
-        bool canSubstituteBy(shared_ptr<Type> replacement) const {
-            if (this->getDimension() != replacement->getDimension()) {
-                return false;
-            }
-            if (isIntegral() && replacement->isReal()) {
-                return false;
-            }
-            // TODO: implement this
-            return true;
+        bool canSubstituteBy(shared_ptr<Type> replacement) const;
+        int addArrDim() { return ++arr_dim; }
+        int getArrDim() const { return arr_dim; }
+        string toStr() const;
+        virtual string typeExp() const;
+};
+
+shared_ptr<Type> the_void_type();
+
+class BoolType : public Type {
+    public:
+        BoolType();
+        BoolType(BoolType*);
+
+        bool isBool() const { return true; }
+        bool isVoid() const { return false; }
+        bool isReal() const { return false; }
+        bool isIntegral() const { return false; }
+        bool isNumerical() const { return false; }
+        bool isEqType() const { return true; }
+        bool isOrdType() const { return false; }
+};
+
+class FuncType : public Type {
+    friend FuncCallExp;
+
+    private:
+        shared_ptr<TypeVec> arg_types;
+        shared_ptr<Type> ret_type;
+
+    public:
+        FuncType(TypeVec*, Type*);
+        FuncType(FuncType*);
+
+        bool isFuncType() const { return true; }
+        bool isVoid() const { return false; }
+        bool isReal() const { return false; }
+        bool isIntegral() const { return false; }
+        bool isNumerical() const { return false; }
+        bool isEqType() const { return false; }
+        bool isOrdType() const { return false; }
+
+        string toStr() const;
+        string typeExp() const;
+};
+
+template <typename T>
+class Vec : public AstNode {
+    public:
+        vector<unique_ptr<T> > items;
+
+        void add(T* item) { items.push_back(unique_ptr<T>(item)); }
+        unsigned int size() const { return items.size(); }
+
+        // TODO: make this pure virtual
+        shared_ptr<Type> typeCheck(Env* env) {
+            return the_void_type();
         }
 
-        int addDimension() { return ++array_dimensions; }
-        int removeDimension() { return --array_dimensions; }
-        int getDimension() const { return array_dimensions; }
-        string toStr() const;
-        virtual string toHumanReadableStr() const;
+        string toStr() const {
+            auto it = items.begin();
+            auto end = items.end();
+            string s = "(";
+            if (it != end) {
+                s += monga::toStr(**it);
+                for (it++; it != items.end(); it++) {
+                    s += "\n" + monga::toStr(**it);
+                }
+            }
+            return s + ")";
+        }
 };
 
 class Env {
@@ -127,7 +175,7 @@ class Env {
             for (int i = scopes.size() - 1; i >= 0; i--) {
                 auto type = scopes[i].find(ident);
                 if (type != scopes[i].end()) {
-                    //LOG("ENV: found \"" << ident << ": " << type->second->toHumanReadableStr() << "\" in scope " << i);
+                    //LOG("ENV: found \"" << ident << ": " << type->second->typeExp() << "\" in scope " << i);
                     return type->second;
                 }
             }
@@ -151,101 +199,8 @@ class Env {
         void addSymbol(const std::string& ident, shared_ptr<Type> type) {
             // TODO: check it's been declared before (not here)
             scopes[scopes.size() - 1][ident] = type;
-            LOG("add symbol \"" << ident << ": " << type->toHumanReadableStr() <<
+            LOG("add symbol \"" << ident << ": " << type->typeExp() <<
                     "\" to current scope (" << (scopes.size() - 1) << ")");
-        }
-};
-
-template <typename T>
-class Vec : public AstNode {
-    public:
-        vector<unique_ptr<T> > items;
-
-        void add(T* item) { items.push_back(unique_ptr<T>(item)); }
-        unsigned int size() const { return items.size(); }
-
-        // TODO: make this pure virtual
-        shared_ptr<Type> typeCheck(Env* env) {
-            return shared_ptr<Type>(new Type(266));
-        }
-
-        string toStr() const {
-            auto it = items.begin();
-            auto end = items.end();
-            string s = "(";
-            if (it != end) {
-                s += monga::toStr(**it);
-                for (it++; it != items.end(); it++) {
-                    s += "\n" + monga::toStr(**it);
-                }
-            }
-            return s + ")";
-        }
-};
-
-class BoolType : public Type {
-    public:
-        BoolType() : Type() {
-        }
-
-        bool isBool() const { return true; }
-        bool isVoid() const { return false; }
-        bool isReal() const { return false; }
-        bool isIntegral() const { return false; }
-        bool isOrderedType() const { return false; }
-        bool isEqualityType() const { return true; }
-
-        string toStr() const {
-            string s = "(t bool 1)";
-            return s;
-        }
-
-        string toHumanReadableStr() const {
-            // TODO: add the dimensions
-            return "bool";
-        }
-};
-
-class FuncType : public Type {
-    friend FuncCallExp;
-
-    private:
-        shared_ptr<TypeVec> arg_types;
-        shared_ptr<Type> ret_type;
-
-    public:
-        FuncType(TypeVec* arg_types, Type* ret_type)
-            : Type(),
-            arg_types(shared_ptr<TypeVec>(arg_types)),
-            ret_type(shared_ptr<Type>(ret_type)) {
-        }
-
-        FuncType(FuncType* t)
-            : arg_types(t->arg_types), ret_type(t->ret_type) {
-        }
-
-        bool isFuncType() const { return true; }
-        bool isVoid() const { return false; }
-        bool isReal() const { return false; }
-        bool isIntegral() const { return false; }
-        bool isOrderedType() const { return false; }
-        bool isEqualityType() const { return false; }
-
-        string toStr() const {
-            string s = "(t " + arg_types->toStr() + " " + ret_type->toStr() + ")";
-            return s;
-        }
-
-        string toHumanReadableStr() const {
-            string type = "(";
-            for (auto it = arg_types->items.begin(); it != arg_types->items.end();)  {
-                type += (*it)->toHumanReadableStr();
-                if (++it != arg_types->items.end()) {
-                    type += ", ";
-                }
-            }
-            type += ") -> " + ret_type->toHumanReadableStr();
-            return type;
         }
 };
 
@@ -468,7 +423,7 @@ class NewExp : public Exp {
             }
 
             Type* t = new Type(type.get());
-            t->addDimension();
+            t->addArrDim();
             return shared_ptr<Type>(t);
         }
 
@@ -533,11 +488,11 @@ class ComparisonBinaryExp : public BinaryExp {
                 shared_ptr<Type> t1,
                 shared_ptr<Type> t2,
                 Env* env) {
-            if (!t1->isOrderedType()) {
+            if (!t1->isOrdType()) {
                 NonOrdTypeComparisonExn e;
                 throw e;
             }
-            if (!t2->isOrderedType()) {
+            if (!t2->isOrdType()) {
                 NonOrdTypeComparisonExn e;
                 throw e;
             }
@@ -547,11 +502,11 @@ class ComparisonBinaryExp : public BinaryExp {
                 shared_ptr<Type> t1,
                 shared_ptr<Type> t2,
                 Env* env) {
-            if (!t1->isEqualityType()) {
+            if (!t1->isEqType()) {
                 NonEqTypeComparisonExn e;
                 throw e;
             }
-            if (!t2->isEqualityType()) {
+            if (!t2->isEqType()) {
                 NonEqTypeComparisonExn e;
                 throw e;
             }
@@ -719,17 +674,17 @@ class Var : public Exp {
             auto ident_type = ident_exp->typeCheck(env);
 
             // check if the []s can be applied...
-            if (((int) arr_subscripts.size()) > ident_type->getDimension()) {
+            if (((int) arr_subscripts.size()) > ident_type->getArrDim()) {
                 InvalidArrSubscriptExn e;
                 throw e;
             }
             // ...and calculates the lvalue (var expression) type
             auto var_type = new Type(ident_type.get());
-            var_type->array_dimensions = ident_type->getDimension() - arr_subscripts.size();
+            var_type->arr_dim = ident_type->getArrDim() - arr_subscripts.size();
 
             // check whether all subscripts are ints
             for (auto it = arr_subscripts.items.begin(); it != arr_subscripts.items.end(); it++) {
-                LOG("SUB: " << (*it)->typeCheck(env)->toHumanReadableStr());
+                LOG("SUB: " << (*it)->typeCheck(env)->typeExp());
                 if (!(*it)->typeCheck(env)->isIntegral()) {
                     InvalidArrSubscriptExn e;
                     throw e;
@@ -779,7 +734,7 @@ class VarDeclVec : public Vec<VarDecl> {
             for (auto it = items.begin(); it != items.end(); it++) {
                 (*it)->typeCheck(env);
             }
-            return shared_ptr<Type>(new Type(266));
+            return the_void_type();
         }
 };
 
@@ -924,7 +879,7 @@ class AssignStmt : public Stmt {
                 InvalidAssignExn e(var_type, rvalue_type);
                 throw e;
             }
-            return shared_ptr<Type>(new Type(266));
+            return the_void_type();
         }
 
         string toStr() const {
@@ -943,7 +898,7 @@ class ReturnStmt : public Stmt {
         shared_ptr<Type> typeCheck(Env* env) {
             LOG("typechecking return statement");
             if (exp == NULL) {
-                return shared_ptr<Type>(new Type(266));
+                return the_void_type();
             }
             return exp->typeCheck(env);
         }
@@ -968,7 +923,7 @@ class FuncCallStmt : public Stmt {
         shared_ptr<Type> typeCheck(Env* env) {
             LOG("typechecking function call statement");
             exp->typeCheck(env);
-            return shared_ptr<Type>(new Type(266));
+            return the_void_type();
         }
 
         string toStr() const { return exp->toStr(); }
@@ -1004,7 +959,7 @@ class Prog : public Vec<Decl> {
                 (*it)->typeCheck(env);
             }
             env->popScope();
-            return shared_ptr<Type>(new Type(266));
+            return the_void_type();
         }
 };
 
