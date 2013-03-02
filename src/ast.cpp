@@ -156,6 +156,10 @@ string FuncType::typeExp() const {
     return type;
 }
 
+bool Type::operator==(const Type& t) const {
+    return this->type_tok == t.type_tok && this->arr_dim == t.arr_dim;
+}
+
 bool FuncType::operator==(const Type& t) const {
     if (t.isFuncType()) {
         unsigned int arity = this->arg_types->size();
@@ -168,6 +172,41 @@ bool FuncType::operator==(const Type& t) const {
         return equals;
     }
     return false;
+}
+
+shared_ptr<Type> Env::findSymbolType(const string& ident)
+        throw(MissingSymExn, SymbolNotFoundExn) {
+    for (int i = ((int) scopes.size()) - 1; i >= 0; i--) {
+        // we can't rely on this scope if a symbol is missing
+        if (scopes[i].missing_symbol) {
+            MissingSymExn e;
+            throw e;
+        }
+        auto sym_pair = scopes[i].sym_table.find(ident);
+        if (sym_pair != scopes[i].sym_table.end()) {
+            // LOG("ENV: found '" << ident << ": " <<
+            //     sym_pair->second->typeExp() << "' in scope " << i);
+            return sym_pair->second;
+        }
+    }
+    {
+        SymbolNotFoundExn e(ident);
+        throw e;
+    }
+}
+
+void Env::addSymbol(const std::string& ident, shared_ptr<Type> type)
+        throw(SymbolRedeclExn) {
+    LOG("adding symbol '" << ident << ": " << type->typeExp() <<
+            "' to current scope (" << (scopes.size() - 1) << ")");
+    Scope& cur_scope = scopes[scopes.size() - 1];
+    auto sym_pair = cur_scope.sym_table.find(ident);
+    if (sym_pair != cur_scope.sym_table.end()) {
+        cur_scope.missing_symbol = true;
+        SymbolRedeclExn e(sym_pair->second, type);
+        throw e;
+    }
+    cur_scope.sym_table[ident] = type;
 }
 
 shared_ptr<Type> IntLiteral::typeCheck(Env* env) {
@@ -261,6 +300,189 @@ shared_ptr<Type> FuncDecl::typeCheck(Env* env) {
         }
     }
     return func_type;
+}
+
+shared_ptr<Type> FuncCallExp::typeCheck(Env* env) {
+    LOG("typechecking function call expression");
+    auto symbol_type = env->findSymbolType(func_ident->getIdentStr());
+    if (symbol_type->isFuncType()) {
+        auto func_type = (FuncType*) symbol_type.get();
+        if (func_type->arg_types->size() != arg_exps->size()) {
+            FuncCallArityMismatchExn e;
+            throw e;
+        }
+
+        auto type_it = func_type->arg_types->items.begin();
+        auto exp_it = arg_exps->items.begin();
+        for (; type_it != func_type->arg_types->items.end(); type_it++, exp_it++) {
+            auto exp_type = (*exp_it)->typeCheck(env);
+            if (!(*type_it)->canSubstituteBy(exp_type)) {
+                FuncCallTypeMismatchExn e;
+                throw e;
+            }
+        }
+
+        return func_type->ret_type;
+    } else {
+        IdentifierNotAFuncExn e;
+        throw e;
+    }
+}
+
+shared_ptr<Type> NumericalBinaryExp::typeCheck(Env* env) {
+    LOG("typechecking numerical binary expression (+, -, *, /)");
+    auto t1 = exp1->typeCheck(env);
+    auto t2 = exp2->typeCheck(env);
+    if (!t1->isNumerical()) {
+        NonNumericalOperandExn e;
+        throw e;
+    }
+    if (!t2->isNumerical()) {
+        NonNumericalOperandExn e;
+        throw e;
+    }
+    return typeCheck(t1, t2, env);
+}
+
+shared_ptr<Type> NewExp::typeCheck(Env* env) {
+    LOG("typechecking new expression");
+
+    auto exp_type = exp->typeCheck(env);
+    if (!exp_type->isIntegral()) {
+        NonIntegralAllocationSizeExn e;
+        throw e;
+    }
+
+    if (type->isVoid()) {
+        InvalidOperandTypeExn e;
+        throw e;
+    }
+
+    Type* t = new Type(type.get());
+    t->addArrDim();
+    return shared_ptr<Type>(t);
+}
+
+shared_ptr<Type> MinusExp::typeCheck(Env* env) {
+    LOG("typechecking minus expression");
+    auto t = exp->typeCheck(env);
+    if (!t->isNumerical()) {
+        NonNumericalOperandExn e;
+        throw e;
+    }
+    return t;
+}
+
+shared_ptr<Type> NotExp::typeCheck(Env* env) {
+    LOG("typechecking not expression");
+    auto t = exp->typeCheck(env);
+    if (!t->isBool()) {
+        InvalidOperandTypeExn e;
+        throw e;
+    }
+    return t;
+}
+
+shared_ptr<Type> BoolBinaryExp::typeCheck(Env* env) {
+    LOG("typechecking bool binary expression (&&, ||)");
+    auto t1 = exp1->typeCheck(env);
+    auto t2 = exp2->typeCheck(env);
+    if (!t1->isBool()) {
+        InvalidOperandTypeExn e;
+        throw e;
+    }
+    if (!t2->isBool()) {
+        InvalidOperandTypeExn e;
+        throw e;
+    }
+    return shared_ptr<Type>(new BoolType());
+}
+
+shared_ptr<Type> Var::typeCheck(Env* env) {
+    LOG("typechecking var expression");
+    // type of the identifier
+    auto ident_type = ident_exp->typeCheck(env);
+
+    // check if the []s can be applied...
+    if (((int) arr_subscripts.size()) > ident_type->getArrDim()) {
+        InvalidArrSubscriptExn e;
+        throw e;
+    }
+    // ...and calculates the lvalue (var expression) type
+    auto var_type = new Type(ident_type.get());
+    var_type->arr_dim = ident_type->getArrDim() - arr_subscripts.size();
+
+    // check whether all subscripts are ints
+    for (auto it = arr_subscripts.items.begin(); it != arr_subscripts.items.end(); it++) {
+        LOG("SUB: " << (*it)->typeCheck(env)->typeExp());
+        if (!(*it)->typeCheck(env)->isIntegral()) {
+            InvalidArrSubscriptExn e;
+            throw e;
+        }
+    }
+
+    return shared_ptr<Type>(var_type);
+}
+
+shared_ptr<Type> IfStmt::typeCheck(Env* env) {
+    LOG("typechecking if statement");
+    auto cond_type = cond_exp->typeCheck(env);
+    if (!cond_type->isBool()) {
+        NonBoolCondExn e;
+        throw e;
+    }
+    if (!else_cmd) {
+        return then_cmd->typeCheck(env);
+    }
+    auto then_cmd_type = then_cmd->typeCheck(env);
+    auto else_cmd_type = else_cmd->typeCheck(env);
+    return resolve_return_type(then_cmd_type, else_cmd_type);
+}
+
+shared_ptr<Type> WhileStmt::typeCheck(Env* env) {
+    LOG("typechecking while statement");
+    auto cond_type = cond_exp->typeCheck(env);
+    if (!cond_type->isBool()) {
+        NonBoolCondExn e;
+        throw e;
+    }
+    return block->typeCheck(env);
+}
+
+shared_ptr<Type> AssignStmt::typeCheck(Env* env) {
+    LOG("typechecking assignment");
+    auto var_type = var->typeCheck(env);
+    auto rvalue_type = rvalue->typeCheck(env);
+    if (!var_type->canSubstituteBy(rvalue_type)) {
+        InvalidAssignExn e(var_type, rvalue_type);
+        throw e;
+    }
+    return the_void_type();
+}
+
+shared_ptr<Type> ReturnStmt::typeCheck(Env* env) {
+    LOG("typechecking return statement");
+    if (exp == NULL) {
+        return the_void_type();
+    }
+    return exp->typeCheck(env);
+}
+
+shared_ptr<Type> FuncCallStmt::typeCheck(Env* env) {
+    LOG("typechecking function call statement");
+    exp->typeCheck(env);
+    return the_void_type();
+}
+
+shared_ptr<Type> Prog::typeCheck(Env* env) {
+    LOG("typechecking program");
+    {
+        EnvScopeGuard g(env);
+        for (auto it = items.begin(); it != items.end(); it++) {
+            (*it)->typeCheck(env);
+        }
+    }
+    return the_void_type();
 }
 
 }; // namespace monga
