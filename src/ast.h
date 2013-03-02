@@ -96,6 +96,10 @@ class Type : public AstNode {
         int getArrDim() const { return arr_dim; }
         string toStr() const;
         virtual string typeExp() const;
+
+        bool operator==(const Type& t) const {
+            return type_tok == t.type_tok && arr_dim == t.arr_dim;
+        }
 };
 
 shared_ptr<Type> the_void_type();
@@ -115,7 +119,7 @@ class BoolType : public Type {
 };
 
 class FuncType : public Type {
-    friend FuncCallExp;
+    friend class FuncCallExp;
 
     private:
         shared_ptr<TypeVec> arg_types;
@@ -135,6 +139,8 @@ class FuncType : public Type {
 
         string toStr() const;
         string typeExp() const;
+
+        bool operator==(const Type& t) const;
 };
 
 template <typename T>
@@ -145,10 +151,7 @@ class Vec : public AstNode {
         void add(T* item) { items.push_back(unique_ptr<T>(item)); }
         unsigned int size() const { return items.size(); }
 
-        // TODO: make this pure virtual
-        shared_ptr<Type> typeCheck(Env* env) {
-            return the_void_type();
-        }
+        shared_ptr<Type> typeCheck(Env* env) { return the_void_type(); }
 
         string toStr() const {
             auto it = items.begin();
@@ -164,10 +167,20 @@ class Vec : public AstNode {
         }
 };
 
+class Scope {
+    friend class Env;
+
+    private:
+        map<string, shared_ptr<Type> > sym_table;
+        // if there's a missing symbol, all lookups in this scope should fail
+        bool missing_symbol;
+
+    public:
+        Scope() : missing_symbol(false) {}
+};
+
 class Env {
     friend class EnvScopeGuard;
-
-    typedef map<string, shared_ptr<Type> > Scope;
 
     private:
         vector<Scope> scopes;
@@ -184,12 +197,19 @@ class Env {
         }
 
     public:
-        shared_ptr<Type> findSymbolType(const string& ident) {
-            for (int i = scopes.size() - 1; i >= 0; i--) {
-                auto type = scopes[i].find(ident);
-                if (type != scopes[i].end()) {
-                    //LOG("ENV: found \"" << ident << ": " << type->second->typeExp() << "\" in scope " << i);
-                    return type->second;
+        shared_ptr<Type> findSymbolType(const string& ident)
+                throw(MissingSymExn, SymbolNotFoundExn) {
+            for (int i = ((int) scopes.size()) - 1; i >= 0; i--) {
+                // we can't rely on this scope if a symbol is missing
+                if (scopes[i].missing_symbol) {
+                    MissingSymExn e;
+                    throw e;
+                }
+                auto sym_pair = scopes[i].sym_table.find(ident);
+                if (sym_pair != scopes[i].sym_table.end()) {
+                    // LOG("ENV: found '" << ident << ": " <<
+                    //     sym_pair->second->typeExp() << "' in scope " << i);
+                    return sym_pair->second;
                 }
             }
             {
@@ -198,11 +218,18 @@ class Env {
             }
         }
 
-        void addSymbol(const std::string& ident, shared_ptr<Type> type) {
-            // TODO: check it's been declared before (not here)
-            scopes[scopes.size() - 1][ident] = type;
-            LOG("add symbol \"" << ident << ": " << type->typeExp() <<
-                    "\" to current scope (" << (scopes.size() - 1) << ")");
+        void addSymbol(const std::string& ident, shared_ptr<Type> type)
+                throw(SymbolRedeclExn) {
+            LOG("adding symbol '" << ident << ": " << type->typeExp() <<
+                    "' to current scope (" << (scopes.size() - 1) << ")");
+            Scope& cur_scope = scopes[scopes.size() - 1];
+            auto sym_pair = cur_scope.sym_table.find(ident);
+            if (sym_pair != cur_scope.sym_table.end()) {
+                cur_scope.missing_symbol = true;
+                SymbolRedeclExn e(sym_pair->second, type);
+                throw e;
+            }
+            cur_scope.sym_table[ident] = type;
         }
 };
 
@@ -965,9 +992,11 @@ class Prog : public Vec<Decl> {
     public:
         shared_ptr<Type> typeCheck(Env* env) {
             LOG("typechecking program");
-            EnvScopeGuard g(env);
-            for (auto it = items.begin(); it != items.end(); it++) {
-                (*it)->typeCheck(env);
+            {
+                EnvScopeGuard g(env);
+                for (auto it = items.begin(); it != items.end(); it++) {
+                    (*it)->typeCheck(env);
+                }
             }
             return the_void_type();
         }

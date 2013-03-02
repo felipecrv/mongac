@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdio>
 #include "ast.h"
+#include "exception.h"
 using namespace monga;
 #include "parser.h"
 
@@ -155,6 +156,20 @@ string FuncType::typeExp() const {
     return type;
 }
 
+bool FuncType::operator==(const Type& t) const {
+    if (t.isFuncType()) {
+        unsigned int arity = this->arg_types->size();
+        const FuncType& ft = (const FuncType&) t;
+        bool equals =
+            arity == ft.arg_types->size() && *this->ret_type == *ft.ret_type;
+        for (unsigned int i = 0; equals && i < arity; i++) {
+            equals = *this->arg_types->items[i] == *ft.arg_types->items[i];
+        }
+        return equals;
+    }
+    return false;
+}
+
 shared_ptr<Type> IntLiteral::typeCheck(Env* env) {
     LOG("typechecking int literal");
     return shared_ptr<Type>(new Type(INT));
@@ -183,7 +198,7 @@ shared_ptr<Type> Block::typeCheck(Env* env) {
         }
     }
 
-    LOG("block returns \"" << block_type->typeExp() << '"');
+    LOG("block returns '" << block_type->typeExp() << '"');
     return block_type;
 }
 
@@ -192,7 +207,18 @@ shared_ptr<Type> VarDecl::typeCheck(Env* env) {
     for (auto ident_it = this->idents->items.begin();
             ident_it != this->idents->items.end();
             ident_it++) {
-        env->addSymbol(**ident_it, symbol_type);
+        try {
+            env->addSymbol(**ident_it, symbol_type);
+        } catch (SymbolRedeclExn& e) {
+            if (*e.fst_decl_type == *e.snd_decl_type) {
+                WARN("redeclaration of '" << **ident_it << "'");
+            } else {
+                ERROR("conflicting types for '" << **ident_it << ": " <<
+                        e.snd_decl_type->typeExp() <<
+                        "', previously declared as '" <<
+                        e.fst_decl_type->typeExp() << "'");
+            }
+        }
     }
     return the_void_type();
 }
@@ -210,20 +236,30 @@ shared_ptr<Type> FuncDecl::typeCheck(Env* env) {
     shared_ptr<FuncType> func_type(new FuncType(arg_types, ret_t));
 
     // add function to the current scope
-    env->addSymbol(*id, func_type);
+    try {
+        env->addSymbol(*id, func_type);
+    } catch (SymbolRedeclExn& e) {
+        ERROR("redefinition of '" << *id << "'");
+    }
 
     // create a new scope, add the arguments to this scope and then type
     // check the function block
-    EnvScopeGuard g(env);
-    for (auto it = args->items.begin(); it != args->items.end(); it++) {
-        auto t = shared_ptr<Type>(new Type((*it)->type.get()));
-        env->addSymbol(*(*it)->id, t);
+    {
+        EnvScopeGuard g(env);
+        for (auto it = args->items.begin(); it != args->items.end(); it++) {
+            auto t = shared_ptr<Type>(new Type((*it)->type.get()));
+            env->addSymbol(*(*it)->id, t);
+        }
+        try {
+            auto block_type = block->typeCheck(env);
+            if (!ret_type->canSubstituteBy(block_type)) {
+                // TODO: error
+            }
+        } catch (MissingSymExn& e) {
+            // the block failed to typecheck as it tried to access a scope with
+            // missing symbols. We ignore it to carry on with the typechecking
+        }
     }
-    auto block_type = block->typeCheck(env);
-    if (!ret_type->canSubstituteBy(block_type)) {
-        // TODO: error
-    }
-
     return func_type;
 }
 

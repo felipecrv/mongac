@@ -12,6 +12,11 @@ extern int yyparse();
 int main(int argc, char* argv[]) {
     mg_scanner_init();
     yyparse();
+    int scanner_err = mg_scanner_finish();
+    if (scanner_err) {
+        return scanner_err;
+    }
+
     if (argc > 1 && strcmp(argv[1], "--dump-ast") == 0) {
         std::cout << program->toStr() << std::endl;
     }
@@ -21,10 +26,14 @@ int main(int argc, char* argv[]) {
     try {
         program->typeCheck(&env);
     } catch (SymbolNotFoundExn& e) {
-        std::cerr << "error: " << e.what() << std::endl;
+        ERROR(e.what());
+        return 1;
     } catch (InvalidAssignExn& e) {
-        std::cerr << "error: " << e.what() << std::endl;
+        ERROR(e.what());
+        return 1;
+    } catch (FatalErrorExn& e) {
+        return 1;
     }
 
-    return mg_scanner_finish();
+    return 0;
 }

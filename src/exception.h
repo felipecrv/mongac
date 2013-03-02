@@ -5,12 +5,31 @@
 #include <memory>
 #include <string>
 
+#define WARN(ops)  std::cerr << "warning: " << ops << std::endl
+#define ERROR(ops)  std::cerr << "error: " << ops << std::endl
+#define FATAL(ops)  std::cerr << "error: " << ops << std::endl; {FatalErrorExn e; throw e;}
+
 namespace monga {
 using namespace std;
 
 class Type;
 
 class SemanticExn : public std::exception {
+};
+
+class FatalErrorExn : public std::exception {
+};
+
+class MissingSymExn : public std::exception {
+};
+
+class SymbolRedeclExn : public SemanticExn {
+    public:
+        shared_ptr<Type> fst_decl_type;
+        shared_ptr<Type> snd_decl_type;
+
+        SymbolRedeclExn(shared_ptr<Type> fst_decl_t, shared_ptr<Type> snd_decl_t)
+            : fst_decl_type(fst_decl_t), snd_decl_type(snd_decl_t) {}
 };
 
 class FuncCallArityMismatchExn : public SemanticExn {
