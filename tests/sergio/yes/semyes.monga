@@ -1,0 +1,29 @@
+int a;
+
+int f(int a, int b) {
+	int[] c;
+	int d;
+	c = new int[d];
+	return a + b;
+}
+
+float h() {
+	return 4;
+}
+
+void g() {
+	f(3, h());
+}
+
+int f2(int b) {
+	int[][] a;
+	int i;
+	a = new int[][5];
+	i = 0;
+	while (i < 5) {
+		a[i] = new int[10];
+		i = i + 1;
+	}
+
+	return a[1][8];
+}

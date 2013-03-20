@@ -1,0 +1,7 @@
+void a(float b) {
+	char[] c;
+	float d;
+	b = 3.14;
+	c = new char[b];
+}
+

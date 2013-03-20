@@ -1,0 +1,8 @@
+int f(int n) {
+	return n * n;
+}
+
+int g() {
+	return f();
+}
+

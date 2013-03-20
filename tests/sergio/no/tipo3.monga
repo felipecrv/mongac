@@ -1,0 +1,14 @@
+int b;
+
+int a(int b) {
+	char[] c;
+	if (b > 1) {
+		int b;
+		while (b > 2) {
+			int b;
+		}
+		return b * 2;
+	}
+	return c; 
+}
+

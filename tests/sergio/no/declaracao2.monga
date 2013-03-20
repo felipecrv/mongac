@@ -1,0 +1,12 @@
+int a;
+
+void f() {
+	int a;
+	a = 3;
+}
+
+void a() {
+	return;
+
+
+} 
