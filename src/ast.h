@@ -12,7 +12,11 @@
 namespace monga {
 using namespace std;
 
-#define LOG(os_ops)  std::cout << __FILE__ << ":" << __LINE__ << ": " << os_ops << std::endl
+#ifdef DEBUG
+  #define LOG(os_ops)  std::cout << __FILE__ << ":" << __LINE__ << ": " << os_ops << std::endl
+#else
+  #define LOG(os_ops)
+#endif
 
 class AstNode;
 class Type;
