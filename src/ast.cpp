@@ -180,6 +180,7 @@ shared_ptr<Type> Env::findSymbolType(const string& ident)
         // we can't rely on this scope if a symbol is missing
         if (scopes[i].missing_symbol) {
             MissingSymExn e;
+            e.emitError();
             throw e;
         }
         auto sym_pair = scopes[i].sym_table.find(ident);
@@ -191,6 +192,7 @@ shared_ptr<Type> Env::findSymbolType(const string& ident)
     }
     {
         SymbolNotFoundExn e(ident);
+        e.emitError();
         throw e;
     }
 }
@@ -203,7 +205,8 @@ void Env::addSymbol(const std::string& ident, shared_ptr<Type> type)
     auto sym_pair = cur_scope.sym_table.find(ident);
     if (sym_pair != cur_scope.sym_table.end()) {
         cur_scope.missing_symbol = true;
-        SymbolRedeclExn e(sym_pair->second, type);
+        SymbolRedeclExn e(ident, sym_pair->second, type);
+        e.emitError();
         throw e;
     }
     cur_scope.sym_table[ident] = type;
@@ -246,18 +249,7 @@ shared_ptr<Type> VarDecl::typeCheck(Env* env) {
     for (auto ident_it = this->idents->items.begin();
             ident_it != this->idents->items.end();
             ident_it++) {
-        try {
-            env->addSymbol(**ident_it, symbol_type);
-        } catch (SymbolRedeclExn& e) {
-            if (*e.fst_decl_type == *e.snd_decl_type) {
-                WARN("redeclaration of '" << **ident_it << "'");
-            } else {
-                ERROR("conflicting types for '" << **ident_it << ": " <<
-                        e.snd_decl_type->typeExp() <<
-                        "', previously declared as '" <<
-                        e.fst_decl_type->typeExp() << "'");
-            }
-        }
+        env->addSymbol(**ident_it, symbol_type);
     }
     return the_void_type();
 }
@@ -275,11 +267,7 @@ shared_ptr<Type> FuncDecl::typeCheck(Env* env) {
     shared_ptr<FuncType> func_type(new FuncType(arg_types, ret_t));
 
     // add function to the current scope
-    try {
-        env->addSymbol(*id, func_type);
-    } catch (SymbolRedeclExn& e) {
-        ERROR("redefinition of '" << *id << "'");
-    }
+    env->addSymbol(*id, func_type);
 
     // create a new scope, add the arguments to this scope and then type
     // check the function block
@@ -294,9 +282,12 @@ shared_ptr<Type> FuncDecl::typeCheck(Env* env) {
             if (!ret_type->canSubstituteBy(block_type)) {
                 // TODO: error
             }
-        } catch (MissingSymExn& e) {
-            // the block failed to typecheck as it tried to access a scope with
-            // missing symbols. We ignore it to carry on with the typechecking
+        } catch (SemanticExn& e) {
+            // the block failed to typecheck for some reason. We ignore it to
+            // carry on with the typechecking of other declarations
+            if (!e.errorEmitted()) {
+                throw e;
+            }
         }
     }
     return func_type;
@@ -309,15 +300,23 @@ shared_ptr<Type> FuncCallExp::typeCheck(Env* env) {
         auto func_type = (FuncType*) symbol_type.get();
         if (func_type->arg_types->size() != arg_exps->size()) {
             FuncCallArityMismatchExn e;
+            e.emitError();
             throw e;
         }
 
         auto type_it = func_type->arg_types->items.begin();
         auto exp_it = arg_exps->items.begin();
-        for (; type_it != func_type->arg_types->items.end(); type_it++, exp_it++) {
+        for (unsigned int i = 1;
+                type_it != func_type->arg_types->items.end();
+                type_it++, exp_it++, i++) {
             auto exp_type = (*exp_it)->typeCheck(env);
             if (!(*type_it)->canSubstituteBy(exp_type)) {
-                FuncCallTypeMismatchExn e;
+                FuncCallTypeMismatchExn e(
+                        func_ident->getIdentStr(),
+                        new Type((*type_it).get()),
+                        new Type(exp_type.get()),
+                        i);
+                e.emitError();
                 throw e;
             }
         }
@@ -325,6 +324,7 @@ shared_ptr<Type> FuncCallExp::typeCheck(Env* env) {
         return func_type->ret_type;
     } else {
         IdentifierNotAFuncExn e;
+        e.emitError();
         throw e;
     }
 }
@@ -335,10 +335,12 @@ shared_ptr<Type> NumericalBinaryExp::typeCheck(Env* env) {
     auto t2 = exp2->typeCheck(env);
     if (!t1->isNumerical()) {
         NonNumericalOperandExn e;
+        e.emitError();
         throw e;
     }
     if (!t2->isNumerical()) {
         NonNumericalOperandExn e;
+        e.emitError();
         throw e;
     }
     return typeCheck(t1, t2, env);
@@ -350,11 +352,13 @@ shared_ptr<Type> NewExp::typeCheck(Env* env) {
     auto exp_type = exp->typeCheck(env);
     if (!exp_type->isIntegral()) {
         NonIntegralAllocationSizeExn e;
+        e.emitError();
         throw e;
     }
 
     if (type->isVoid()) {
         InvalidOperandTypeExn e;
+        e.emitError();
         throw e;
     }
 
@@ -368,6 +372,7 @@ shared_ptr<Type> MinusExp::typeCheck(Env* env) {
     auto t = exp->typeCheck(env);
     if (!t->isNumerical()) {
         NonNumericalOperandExn e;
+        e.emitError();
         throw e;
     }
     return t;
@@ -378,6 +383,7 @@ shared_ptr<Type> NotExp::typeCheck(Env* env) {
     auto t = exp->typeCheck(env);
     if (!t->isBool()) {
         InvalidOperandTypeExn e;
+        e.emitError();
         throw e;
     }
     return t;
@@ -389,10 +395,12 @@ shared_ptr<Type> BoolBinaryExp::typeCheck(Env* env) {
     auto t2 = exp2->typeCheck(env);
     if (!t1->isBool()) {
         InvalidOperandTypeExn e;
+        e.emitError();
         throw e;
     }
     if (!t2->isBool()) {
         InvalidOperandTypeExn e;
+        e.emitError();
         throw e;
     }
     return shared_ptr<Type>(new BoolType());
@@ -406,6 +414,7 @@ shared_ptr<Type> Var::typeCheck(Env* env) {
     // check if the []s can be applied...
     if (((int) arr_subscripts.size()) > ident_type->getArrDim()) {
         InvalidArrSubscriptExn e;
+        e.emitError();
         throw e;
     }
     // ...and calculates the lvalue (var expression) type
@@ -417,6 +426,7 @@ shared_ptr<Type> Var::typeCheck(Env* env) {
         LOG("SUB: " << (*it)->typeCheck(env)->typeExp());
         if (!(*it)->typeCheck(env)->isIntegral()) {
             InvalidArrSubscriptExn e;
+            e.emitError();
             throw e;
         }
     }
@@ -429,6 +439,7 @@ shared_ptr<Type> IfStmt::typeCheck(Env* env) {
     auto cond_type = cond_exp->typeCheck(env);
     if (!cond_type->isBool()) {
         NonBoolCondExn e;
+        e.emitError();
         throw e;
     }
     if (!else_cmd) {
@@ -444,6 +455,7 @@ shared_ptr<Type> WhileStmt::typeCheck(Env* env) {
     auto cond_type = cond_exp->typeCheck(env);
     if (!cond_type->isBool()) {
         NonBoolCondExn e;
+        e.emitError();
         throw e;
     }
     return block->typeCheck(env);
@@ -455,6 +467,7 @@ shared_ptr<Type> AssignStmt::typeCheck(Env* env) {
     auto rvalue_type = rvalue->typeCheck(env);
     if (!var_type->canSubstituteBy(rvalue_type)) {
         InvalidAssignExn e(var_type, rvalue_type);
+        e.emitError();
         throw e;
     }
     return the_void_type();

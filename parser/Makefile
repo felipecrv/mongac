@@ -1,4 +1,4 @@
-CXXFLAGS=-I ../src/ -I./ -Wall -O2 -std=c++0x
+CXXFLAGS=-I ../src/ -I./ -Wall -g -std=c++0x
 LEX=flex
 YACC=bison
 YFLAGS=--verbose --defines=parser.h
@@ -30,6 +30,18 @@ tokens.cpp: ../src/tokens.l ../src/tokens.h
 clean:
 	rm -f *.o *.output *.tab.c mongaparser
 	rm -f parser.h parser.cpp tokens.o tokens.cpp
+
+sergio_tests: mongaparser
+	./$< < ../tests/sergio/no/tipo1.monga
+	./$< < ../tests/sergio/no/tipo2.monga
+	./$< < ../tests/sergio/no/tipo3.monga
+	./$< < ../tests/sergio/no/tipo4.monga
+	./$< < ../tests/sergio/no/declaracao1.monga
+	./$< < ../tests/sergio/no/declaracao2.monga
+	./$< < ../tests/sergio/no/chamada1.monga
+	./$< < ../tests/sergio/no/chamada2.monga
+	#./$< < ../tests/sergio/yes
+
 
 test: mongaparser
 	./$< < ../tests/basic.monga

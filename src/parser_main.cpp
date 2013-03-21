@@ -25,15 +25,9 @@ int main(int argc, char* argv[]) {
     Env env;
     try {
         program->typeCheck(&env);
-    } catch (SymbolNotFoundExn& e) {
-        ERROR(e.what());
-        return 1;
-    } catch (InvalidAssignExn& e) {
-        ERROR(e.what());
-        return 1;
-    } catch (FatalErrorExn& e) {
+    } catch (SemanticExn& e) {
+        e.emitError();
         return 1;
     }
-
     return 0;
 }
