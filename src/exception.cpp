@@ -43,11 +43,17 @@ FuncCallTypeMismatchExn::FuncCallTypeMismatchExn(
 
 SymbolNotFoundExn::SymbolNotFoundExn(const string& symbol) noexcept
         : symbol(symbol) {
-    this->message = "symbol " + symbol + " not found in this scope";
+    this->message = "'" + symbol + "' was not declared in this scope";
 }
 
 InvalidAssignExn::InvalidAssignExn(shared_ptr<Type> lval_type, shared_ptr<Type> rval_type)
         : lvalue_type(lval_type), rvalue_type(rval_type) {
     this->message = "incompatible types when assigning to type '" +
         lval_type->typeExp() + "' from type '" + rval_type->typeExp() + "'";
+}
+
+ReturnTypeMismatchExn::ReturnTypeMismatchExn(Type expected_type, Type returned_type) {
+    this->message = "incompatible types when returning type '" +
+        returned_type.typeExp() + "' but '" + expected_type.typeExp() +
+        "' was expected";
 }

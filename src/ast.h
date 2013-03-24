@@ -63,15 +63,19 @@ typedef Vec<Arg> ArgsVec;
 typedef Vec<Exp> ExpVec;
 typedef Vec<Command> CommandVec;
 
+shared_ptr<Type> the_void_type();
+
 class AstNode {
     public:
         virtual string toStr() const = 0;
-        virtual shared_ptr<Type> typeCheck(Env*);
+        virtual shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>) {
+            return the_void_type();
+        }
 };
 
 string toStr(const AstNode& node);
 string toStr(const string& s);
-shared_ptr<Type> resolve_return_type(shared_ptr<Type>, shared_ptr<Type>);
+Type if_stmt_type(Type, Type);
 
 class Type : public AstNode {
     friend class Var;
@@ -86,6 +90,10 @@ class Type : public AstNode {
 
         Type(Type* t) : type_tok(t->type_tok), arr_dim(t->arr_dim) {}
 
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>) {
+            return the_void_type();
+        }
+
         virtual bool isFuncType() const { return false; }
         virtual bool isBool() const { return false; }
         virtual bool isVoid() const;
@@ -95,16 +103,16 @@ class Type : public AstNode {
         virtual bool isEqType() const;
         virtual bool isOrdType() const;
 
-        bool canSubstituteBy(shared_ptr<Type> replacement) const;
+        bool canSubstituteBy(Type) const;
+        int getTypeTok() const { return type_tok; }
         int addArrDim() { return ++arr_dim; }
         int getArrDim() const { return arr_dim; }
         string toStr() const;
         virtual string typeExp() const;
 
-        bool operator==(const Type& t) const;
+        bool operator==(Type t2) const;
+        bool operator!=(Type t) const { return !((*this) == t); }
 };
-
-shared_ptr<Type> the_void_type();
 
 class BoolType : public Type {
     public:
@@ -153,7 +161,7 @@ class Vec : public AstNode {
         void add(T* item) { items.push_back(unique_ptr<T>(item)); }
         unsigned int size() const { return items.size(); }
 
-        shared_ptr<Type> typeCheck(Env* env) { return the_void_type(); }
+        shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type>) { return the_void_type(); }
 
         string toStr() const {
             auto it = items.begin();
@@ -240,7 +248,7 @@ class IdentExp : public Exp {
         IdentExp(string* id) : id(unique_ptr<string>(id)) {}
         string getIdentStr() const { return *id; }
         string toStr() const { return *id; }
-        shared_ptr<Type> typeCheck(Env* env) { return env->findSymbolType(*id); }
+        shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type>) { return env->findSymbolType(*id); }
 };
 
 class IntLiteral : public Exp {
@@ -262,7 +270,7 @@ class IntLiteral : public Exp {
             return s;
         }
 
-        shared_ptr<Type> typeCheck(Env* env);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 };
 
 class FloatLiteral : public Exp {
@@ -280,7 +288,7 @@ class FloatLiteral : public Exp {
             return ".";
         }
 
-        shared_ptr<Type> typeCheck(Env* env);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 };
 
 class StringLiteral : public Exp {
@@ -290,7 +298,7 @@ class StringLiteral : public Exp {
     public:
         StringLiteral(string* s) : val(unique_ptr<string>(s)) {}
         string toStr() const { return *val; }
-        shared_ptr<Type> typeCheck(Env* env);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 };
 
 class FuncCallExp : public Exp {
@@ -310,7 +318,7 @@ class FuncCallExp : public Exp {
             return "(" + func_ident->toStr() + " " + arg_exps->toStr() + ")";
         }
 
-        shared_ptr<Type> typeCheck(Env* env);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 };
 
 class BinaryExp : public Exp {
@@ -346,7 +354,7 @@ class NumericalBinaryExp : public BinaryExp {
 
     public:
         NumericalBinaryExp(Exp* exp1, Exp* exp2) : BinaryExp(exp1, exp2) {}
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 };
 
 class UnaryExp : public Exp {
@@ -366,7 +374,7 @@ class NewExp : public Exp {
         NewExp(Type* type, Exp* exp)
             : type(unique_ptr<Type>(type)), exp(unique_ptr<Exp>(exp)) {}
 
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {
             return "(new " + type->toStr() + " " + exp->toStr() + ")";
@@ -376,7 +384,7 @@ class NewExp : public Exp {
 class MinusExp : public UnaryExp {
     public:
         MinusExp(Exp* exp) : UnaryExp(exp) {}
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
         string toStr() const { return "-" + exp->toStr(); }
 };
 
@@ -439,10 +447,10 @@ class ComparisonBinaryExp : public BinaryExp {
     public:
         ComparisonBinaryExp(Exp* exp1, Exp* exp2) : BinaryExp(exp1, exp2) {}
 
-        shared_ptr<Type> typeCheck(Env* env) {
+        shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type>) {
             LOG("typechecking binary comparison expression (<, <=, >, >=, ==)");
-            auto t1 = exp1->typeCheck(env);
-            auto t2 = exp2->typeCheck(env);
+            auto t1 = exp1->typeCheck(env, the_void_type());
+            auto t2 = exp2->typeCheck(env, the_void_type());
             return typeCheck(t1, t2, env);
         }
 };
@@ -512,14 +520,14 @@ class LowerEqExp : public ComparisonBinaryExp {
 class NotExp : public UnaryExp {
     public:
         NotExp(Exp* exp) : UnaryExp(exp) {}
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
         string toStr() const { return "!" + exp->toStr(); }
 };
 
 class BoolBinaryExp : public BinaryExp {
     public:
         BoolBinaryExp(Exp* exp1, Exp* exp2) : BinaryExp(exp1, exp2) {}
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 };
 
 class AndExp : public BoolBinaryExp {
@@ -548,7 +556,7 @@ class Var : public Exp {
             return this;
         }
 
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {
             if (arr_subscripts.size()) {
@@ -572,7 +580,7 @@ class VarDecl : public Decl {
         VarDecl(Type* type, IdVec* idents)
             : type(unique_ptr<Type>(type)), idents(unique_ptr<IdVec>(idents)) {}
 
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {
             string s = "(var " + type->toStr();
@@ -585,9 +593,9 @@ class VarDecl : public Decl {
 
 class VarDeclVec : public Vec<VarDecl> {
     public:
-        shared_ptr<Type> typeCheck(Env* env) {
+        shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type> et) {
             for (auto it = items.begin(); it != items.end(); it++) {
-                (*it)->typeCheck(env);
+                (*it)->typeCheck(env, et);
             }
             return the_void_type();
         }
@@ -603,7 +611,7 @@ class Block : public AstNode {
             : vars(unique_ptr<VarDeclVec>(var_decls)),
             commands(unique_ptr<CommandVec>(commands)) {}
 
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {
             return "(" + vars->toStr() + "\n" + commands->toStr() + ")";
@@ -619,7 +627,9 @@ class BlockStmt : public Stmt {
 
     public:
         BlockStmt(Block* block) : block(unique_ptr<Block>(block)) {}
-        shared_ptr<Type> typeCheck(Env* env) { return block->typeCheck(env); }
+        shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type> expected_type) {
+            return block->typeCheck(env, expected_type);
+        }
         string toStr() const { return block->toStr(); }
 };
 
@@ -631,7 +641,9 @@ class Command : public AstNode {
         Command(Stmt* stmt) : stmt(unique_ptr<Stmt>(stmt)) {}
         Command(Block* block)
             : stmt(unique_ptr<BlockStmt>(new BlockStmt(block))) {}
-        shared_ptr<Type> typeCheck(Env* env) { return stmt->typeCheck(env); }
+        shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type> expected_type) {
+            return stmt->typeCheck(env, expected_type);
+        }
         string toStr() const { return stmt->toStr(); }
 };
 
@@ -648,7 +660,7 @@ class IfStmt : public Stmt {
             else_cmd(unique_ptr<Command>(else_cmd)) {
         }
 
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {
             string s = "(if " + cond_exp->toStr() + "\n" + then_cmd->toStr();
@@ -670,7 +682,7 @@ class WhileStmt : public Stmt {
             block(unique_ptr<Block>(block)) {
         }
 
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {
             return "(while " + cond_exp->toStr() + "\n" + block->toStr() + ")";
@@ -688,7 +700,7 @@ class AssignStmt : public Stmt {
             rvalue(unique_ptr<Exp>(rvalue)) {
         }
 
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {
             return "(set " + var->toStr() + " " + rvalue->toStr() + ")";
@@ -702,7 +714,7 @@ class ReturnStmt : public Stmt {
     public:
         ReturnStmt(Exp* exp = NULL) : exp(unique_ptr<Exp>(exp)) {}
 
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {
             if (exp == NULL) {
@@ -719,7 +731,7 @@ class FuncCallStmt : public Stmt {
     public:
         FuncCallStmt(FuncCallExp* exp)
             : exp(unique_ptr<FuncCallExp>(exp)) {}
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
         string toStr() const { return exp->toStr(); }
 };
 
@@ -735,7 +747,7 @@ class FuncDecl : public Decl {
             : ret_type(unique_ptr<Type>(ret_type)), id(unique_ptr<string>(id)),
             args(shared_ptr<ArgsVec>(args)), block(unique_ptr<Block>(block)) {}
 
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {
             return "(fun " + ret_type->toStr() + " " + *id + "\n" + args->toStr()
@@ -745,7 +757,7 @@ class FuncDecl : public Decl {
 
 class Prog : public Vec<Decl> {
     public:
-        shared_ptr<Type> typeCheck(Env*);
+        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 };
 
 }; // namespace monga

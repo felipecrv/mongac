@@ -40,7 +40,7 @@ sergio_tests: mongaparser
 	./$< < ../tests/sergio/no/declaracao2.monga
 	./$< < ../tests/sergio/no/chamada1.monga
 	./$< < ../tests/sergio/no/chamada2.monga
-	#./$< < ../tests/sergio/yes
+	./$< < ../tests/sergio/yes/semyes.monga
 
 
 test: mongaparser

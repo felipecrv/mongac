@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
     // type checks the program
     Env env;
     try {
-        program->typeCheck(&env);
+        program->typeCheck(&env, the_void_type());
     } catch (SemanticExn& e) {
         e.emitError();
         return 1;

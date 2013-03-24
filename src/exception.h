@@ -24,6 +24,7 @@ class SemanticExn : public std::exception {
 
     public:
         SemanticExn() { this->message = "semantic exception"; }
+        SemanticExn(string msg) : message(msg) {}
         const char* what() const noexcept { return this->message.c_str(); }
         bool errorEmitted() { return error_emitted; }
 
@@ -50,12 +51,17 @@ class SymbolRedeclExn : public SemanticExn {
 
 class FuncCallArityMismatchExn : public SemanticExn {
     public:
-        FuncCallArityMismatchExn() {}
+        FuncCallArityMismatchExn(string s, unsigned int func_n, unsigned int call_n) {
+            this->message = "invalid call to function '" + s + "'. It can take " +
+                to_string(func_n) + " argument(s) but passed " + to_string(call_n);
+        }
 };
 
 class InvalidArrSubscriptExn : public SemanticExn {
     public:
-        InvalidArrSubscriptExn() {}
+        InvalidArrSubscriptExn() {
+            this->message = "array subscript is not an integer";
+        }
 };
 
 class FuncCallTypeMismatchExn : public SemanticExn {
@@ -67,6 +73,11 @@ class FuncCallTypeMismatchExn : public SemanticExn {
 
     public:
         FuncCallTypeMismatchExn(string, Type*, Type*, unsigned int);
+};
+
+class ReturnTypeMismatchExn : public SemanticExn {
+    public:
+        ReturnTypeMismatchExn(Type, Type);
 };
 
 class NonOrdTypeComparisonExn : public SemanticExn {
@@ -91,6 +102,11 @@ class NonBoolCondExn : public SemanticExn {
 };
 
 class NonIntegralAllocationSizeExn : public SemanticExn {
+    public:
+        NonIntegralAllocationSizeExn() {
+            this->message =
+                "expression in new-declarator must have integral type";
+        }
 };
 
 class NonNumericalOperandExn : public SemanticExn {
