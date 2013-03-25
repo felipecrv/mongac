@@ -1,7 +1,5 @@
 /* scanner para a linguagem Monga */
 
-%option yylineno
-
 %top{
 #include <cstdio>
 #include <cstdarg>
@@ -28,8 +26,13 @@ using namespace monga; // necessary inside the bison-generated parser.h
     #define VAL_TOK(t)     yylval.string = new std::string(yytext, yyleng); return (t)
     #define STR_TOK(t, st) yylval.string = new std::string(st); return (t)
   #endif
+
+  #include "parser.h"  /* This is where it gets the definition for yylloc from */
+  #define YY_USER_ACTION yylloc.first_line = yylloc.last_line = yylineno;
 #endif
 }
+
+%option yylineno
 
 %{
 static int mg_scan_errno = 0; // error code
