@@ -219,7 +219,7 @@ shared_ptr<Type> Block::typeCheck(Env* env, shared_ptr<Type> expected_type) {
         if (!t->isVoid()) {
             block_type = t;
             if (!expected_type->canSubstituteBy(*block_type)) {
-                ReturnTypeMismatchExn e(*expected_type, *block_type);
+                ReturnTypeMismatchExn e(*expected_type, *block_type, (*it)->lineno);
                 e.emitError();
                 throw e;
             }
@@ -313,10 +313,7 @@ shared_ptr<Type> FuncCallExp::typeCheck(Env* env, shared_ptr<Type> et) {
     if (symbol_type->isFuncType()) {
         auto func_type = (FuncType*) symbol_type.get();
         if (func_type->arg_types->size() != arg_exps->size()) {
-            FuncCallArityMismatchExn e(
-                    func_ident->getIdentStr(),
-                    func_type->arg_types->size(),
-                    arg_exps->size());
+            FuncCallArityMismatchExn e(func_type->arg_types->size(), this);
             e.emitError();
             throw e;
         }
@@ -332,7 +329,8 @@ shared_ptr<Type> FuncCallExp::typeCheck(Env* env, shared_ptr<Type> et) {
                         func_ident->getIdentStr(),
                         new Type((*type_it).get()),
                         new Type(exp_type.get()),
-                        i);
+                        i,
+                        (*exp_it)->lineno);
                 e.emitError();
                 throw e;
             }
@@ -340,7 +338,7 @@ shared_ptr<Type> FuncCallExp::typeCheck(Env* env, shared_ptr<Type> et) {
 
         return func_type->ret_type;
     } else {
-        IdentifierNotAFuncExn e;
+        IdentifierNotAFuncExn e(func_ident->getIdentStr(), symbol_type, this->lineno);
         e.emitError();
         throw e;
     }
@@ -350,13 +348,8 @@ shared_ptr<Type> NumericalBinaryExp::typeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking numerical binary expression (+, -, *, /)");
     auto t1 = exp1->typeCheck(env, et);
     auto t2 = exp2->typeCheck(env, et);
-    if (!t1->isNumerical()) {
-        NonNumericalOperandExn e;
-        e.emitError();
-        throw e;
-    }
-    if (!t2->isNumerical()) {
-        NonNumericalOperandExn e;
+    if (!t1->isNumerical() || !t2->isNumerical()) {
+        SemanticExn e("invalid operand in numerical expression", this->lineno);
         e.emitError();
         throw e;
     }
@@ -366,15 +359,17 @@ shared_ptr<Type> NumericalBinaryExp::typeCheck(Env* env, shared_ptr<Type> et) {
 shared_ptr<Type> NewExp::typeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking new expression");
 
-    auto exp_type = exp->typeCheck(env, et);
-    if (!exp_type->isIntegral()) {
-        NonIntegralAllocationSizeExn e;
+    if (type->isVoid()) {
+        SemanticExn e("cannot create an array of void", this->lineno);
         e.emitError();
         throw e;
     }
 
-    if (type->isVoid()) {
-        InvalidOperandTypeExn e;
+    auto exp_type = exp->typeCheck(env, et);
+    if (!exp_type->isIntegral()) {
+        SemanticExn e(
+                "expression in new-declarator must have integral type",
+                this->lineno);
         e.emitError();
         throw e;
     }
@@ -388,7 +383,7 @@ shared_ptr<Type> MinusExp::typeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking minus expression");
     auto t = exp->typeCheck(env, et);
     if (!t->isNumerical()) {
-        NonNumericalOperandExn e;
+        SemanticExn e("invalid operand in numerical expression", this->lineno);
         e.emitError();
         throw e;
     }
@@ -399,7 +394,7 @@ shared_ptr<Type> NotExp::typeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking not expression");
     auto t = exp->typeCheck(env, et);
     if (!t->isBool()) {
-        InvalidOperandTypeExn e;
+        SemanticExn e("invalid operand in logical expression", this->lineno);
         e.emitError();
         throw e;
     }
@@ -410,13 +405,8 @@ shared_ptr<Type> BoolBinaryExp::typeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking bool binary expression (&&, ||)");
     auto t1 = exp1->typeCheck(env, et);
     auto t2 = exp2->typeCheck(env, et);
-    if (!t1->isBool()) {
-        InvalidOperandTypeExn e;
-        e.emitError();
-        throw e;
-    }
-    if (!t2->isBool()) {
-        InvalidOperandTypeExn e;
+    if (!t1->isBool() || !t2->isBool()) {
+        SemanticExn e("invalid operand in logical expression", this->lineno);
         e.emitError();
         throw e;
     }
@@ -426,11 +416,18 @@ shared_ptr<Type> BoolBinaryExp::typeCheck(Env* env, shared_ptr<Type> et) {
 shared_ptr<Type> Var::typeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking var expression");
     // type of the identifier
-    auto ident_type = ident_exp->typeCheck(env, et);
+    shared_ptr<Type> ident_type;
+    try {
+        ident_type = ident_exp->typeCheck(env, et);
+    } catch (SymbolNotFoundExn& e) {
+        e.lineno = this->lineno;
+        e.emitError();
+        throw e;
+    }
 
     // check if the []s can be applied...
     if (((int) arr_subscripts.size()) > ident_type->getArrDim()) {
-        InvalidArrSubscriptExn e;
+        SemanticExn e("too many []'s applied", this->lineno);
         e.emitError();
         throw e;
     }
@@ -442,7 +439,7 @@ shared_ptr<Type> Var::typeCheck(Env* env, shared_ptr<Type> et) {
     for (auto it = arr_subscripts.items.begin(); it != arr_subscripts.items.end(); it++) {
         LOG("SUB: " << (*it)->typeCheck(env, et)->typeExp());
         if (!(*it)->typeCheck(env, et)->isIntegral()) {
-            InvalidArrSubscriptExn e;
+            SemanticExn e("array subscript is not an integer", (*it)->lineno);
             e.emitError();
             throw e;
         }
@@ -455,7 +452,7 @@ shared_ptr<Type> IfStmt::typeCheck(Env* env, shared_ptr<Type> expected_return_ty
     LOG("typechecking if statement");
     auto cond_type = cond_exp->typeCheck(env, the_void_type());
     if (!cond_type->isBool()) {
-        NonBoolCondExn e;
+        SemanticExn e("invalid IF condition expression", cond_exp->lineno);
         e.emitError();
         throw e;
     }
@@ -467,7 +464,8 @@ shared_ptr<Type> IfStmt::typeCheck(Env* env, shared_ptr<Type> expected_return_ty
 
     if (!then_cmd_type->isVoid()) {
         if (!expected_return_type->canSubstituteBy(*then_cmd_type)) {
-            ReturnTypeMismatchExn e(*expected_return_type, *then_cmd_type);
+            // TODO: not the right lineno
+            ReturnTypeMismatchExn e(*expected_return_type, *then_cmd_type, this->lineno);
             e.emitError();
             throw e;
         }
@@ -475,7 +473,8 @@ shared_ptr<Type> IfStmt::typeCheck(Env* env, shared_ptr<Type> expected_return_ty
 
     if (!else_cmd_type->isVoid()) {
         if (!expected_return_type->canSubstituteBy(*else_cmd_type)) {
-            ReturnTypeMismatchExn e(*expected_return_type, *else_cmd_type);
+            // TODO: not the right lineno
+            ReturnTypeMismatchExn e(*expected_return_type, *else_cmd_type, this->lineno);
             e.emitError();
             throw e;
         }
@@ -492,7 +491,7 @@ shared_ptr<Type> WhileStmt::typeCheck(Env* env, shared_ptr<Type> expected_type) 
     LOG("typechecking while statement");
     auto cond_type = cond_exp->typeCheck(env, expected_type);
     if (!cond_type->isBool()) {
-        NonBoolCondExn e;
+        SemanticExn e("invalid WHILE condition expression", cond_exp->lineno);
         e.emitError();
         throw e;
     }
@@ -506,7 +505,7 @@ shared_ptr<Type> AssignStmt::typeCheck(Env* env, shared_ptr<Type> et) {
     auto var_type = var->typeCheck(env, et);
     auto rvalue_type = rvalue->typeCheck(env, et);
     if (!var_type->canSubstituteBy(*rvalue_type)) {
-        InvalidAssignExn e(var_type, rvalue_type);
+        InvalidAssignExn e(var_type, rvalue_type, this->lineno);
         e.emitError();
         throw e;
     }
@@ -517,7 +516,7 @@ shared_ptr<Type> ReturnStmt::typeCheck(Env* env, shared_ptr<Type> expected_type)
     LOG("typechecking return statement");
     shared_ptr<Type> e_type = (exp == NULL) ? the_void_type() : exp->typeCheck(env, expected_type);
     if (!expected_type->canSubstituteBy(*e_type)) {
-        ReturnTypeMismatchExn e(*expected_type, *e_type);
+        ReturnTypeMismatchExn e(*expected_type, *e_type, this->lineno);
         e.emitError();
         throw e;
     }

@@ -6,8 +6,8 @@
 using namespace monga;
 
 extern Prog* program;
-
 extern int yyparse();
+extern int semantic_check_success;
 
 int main(int argc, char* argv[]) {
     mg_scanner_init();
@@ -27,7 +27,6 @@ int main(int argc, char* argv[]) {
         program->typeCheck(&env, the_void_type());
     } catch (SemanticExn& e) {
         e.emitError();
-        return 1;
     }
-    return 0;
+    return !semantic_check_success;
 }

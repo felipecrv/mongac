@@ -253,13 +253,7 @@ class IdentExp : public Exp {
         string getIdentStr() const { return *id; }
         string toStr() const { return *id; }
         shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type>) {
-            try {
-                return env->findSymbolType(*id);
-            } catch (SymbolNotFoundExn& e) {
-                e.lineno = this->lineno;
-                e.emitError();
-                throw e;
-            }
+            return env->findSymbolType(*id);
         }
 };
 
@@ -275,7 +269,7 @@ class IntLiteral : public Exp {
         }
 
         string toStr() const {
-            string s = "_";
+            string s = "NUMINT";
             // TODO: convert
             //ostringstream ss(s);
             //ss << val;
@@ -314,6 +308,8 @@ class StringLiteral : public Exp {
 };
 
 class FuncCallExp : public Exp {
+    friend FuncCallArityMismatchExn;
+
     private:
         unique_ptr<IdentExp> func_ident;
         unique_ptr<ExpVec> arg_exps;
@@ -427,29 +423,19 @@ class DivExp : public NumericalBinaryExp {
 class ComparisonBinaryExp : public BinaryExp {
     protected:
         void typeCheckOrderedComparison(
-                shared_ptr<Type> t1,
-                shared_ptr<Type> t2,
-                Env* env) {
-            if (!t1->isOrdType()) {
-                NonOrdTypeComparisonExn e;
-                throw e;
-            }
-            if (!t2->isOrdType()) {
-                NonOrdTypeComparisonExn e;
+                shared_ptr<Type> t1, shared_ptr<Type> t2, Env* env) {
+            if (!t1->isOrdType() || !t2->isOrdType()) {
+                SemanticExn e("invalid operand in comparison expression", this->lineno);
+                e.emitError();
                 throw e;
             }
         }
 
         void typeCheckEqualityComparison(
-                shared_ptr<Type> t1,
-                shared_ptr<Type> t2,
-                Env* env) {
-            if (!t1->isEqType()) {
-                NonEqTypeComparisonExn e;
-                throw e;
-            }
-            if (!t2->isEqType()) {
-                NonEqTypeComparisonExn e;
+                shared_ptr<Type> t1, shared_ptr<Type> t2, Env* env) {
+            if (!t1->isEqType() || !t2->isEqType()) {
+                SemanticExn e("invalid operand in comparison expression", this->lineno);
+                e.emitError();
                 throw e;
             }
         }

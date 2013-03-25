@@ -32,15 +32,15 @@ clean:
 	rm -f parser.h parser.cpp tokens.o tokens.cpp
 
 sergio_tests: mongaparser
-	./$< < ../tests/sergio/no/tipo1.monga
-	./$< < ../tests/sergio/no/tipo2.monga
-	./$< < ../tests/sergio/no/tipo3.monga
-	./$< < ../tests/sergio/no/tipo4.monga
-	./$< < ../tests/sergio/no/declaracao1.monga
-	./$< < ../tests/sergio/no/declaracao2.monga
-	./$< < ../tests/sergio/no/chamada1.monga
-	./$< < ../tests/sergio/no/chamada2.monga
-	./$< < ../tests/sergio/yes/semyes.monga
+	-./$< < ../tests/sergio/no/tipo1.monga
+	-./$< < ../tests/sergio/no/tipo2.monga
+	-./$< < ../tests/sergio/no/tipo3.monga
+	-./$< < ../tests/sergio/no/tipo4.monga
+	-./$< < ../tests/sergio/no/declaracao1.monga
+	-./$< < ../tests/sergio/no/declaracao2.monga
+	-./$< < ../tests/sergio/no/chamada1.monga
+	-./$< < ../tests/sergio/no/chamada2.monga
+	-./$< < ../tests/sergio/yes/semyes.monga
 
 
 test: mongaparser

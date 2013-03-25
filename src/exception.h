@@ -14,6 +14,7 @@ namespace monga {
 using namespace std;
 
 class Type;
+class FuncCallExp;
 
 class SemanticExn : public std::exception {
     private:
@@ -26,22 +27,16 @@ class SemanticExn : public std::exception {
         int lineno;
 
         SemanticExn() { this->message = "semantic exception"; }
-        SemanticExn(string msg) : message(msg) {}
+        SemanticExn(string msg, int lineno = -1) : message(msg), lineno(lineno) {}
         virtual const char* what() const noexcept { return this->message.c_str(); }
         bool errorEmitted() { return error_emitted; }
 
-        virtual void emitError() {
-            if (!error_emitted) {
-                std::cerr << "error:" << lineno << ": " << this->message << std::endl;
-                error_emitted = true;
-            }
-        }
-
+        virtual void emitError();
 };
 
 class DirtyScopeExn : public SemanticExn {
     virtual const char* what() const noexcept { return "DirtyScopeExn"; }
-    virtual void emitError() {}
+    void emitError();
 };
 
 class SymbolRedeclExn : public SemanticExn {
@@ -51,55 +46,27 @@ class SymbolRedeclExn : public SemanticExn {
 
 class FuncCallArityMismatchExn : public SemanticExn {
     public:
-        FuncCallArityMismatchExn(string, unsigned int, unsigned int);
-};
-
-class InvalidArrSubscriptExn : public SemanticExn {
-    public:
-        InvalidArrSubscriptExn() {
-            this->message = "array subscript is not an integer";
-        }
+        FuncCallArityMismatchExn(unsigned int, const FuncCallExp*);
 };
 
 class FuncCallTypeMismatchExn : public SemanticExn {
     public:
-        FuncCallTypeMismatchExn(string, Type*, Type*, unsigned int) noexcept;
+        FuncCallTypeMismatchExn(string, Type*, Type*, unsigned int, int) noexcept;
 };
 
 class ReturnTypeMismatchExn : public SemanticExn {
     public:
-        ReturnTypeMismatchExn(Type, Type);
-};
-
-class NonOrdTypeComparisonExn : public SemanticExn {
+        ReturnTypeMismatchExn(Type, Type, int);
 };
 
 class IdentifierNotAFuncExn : public SemanticExn {
+    public:
+        IdentifierNotAFuncExn(string id, shared_ptr<Type>, int);
 };
 
 class InvalidAssignExn : public SemanticExn {
     public:
-        InvalidAssignExn(shared_ptr<Type>, shared_ptr<Type>);
-};
-
-class InvalidOperandTypeExn : public SemanticExn {
-};
-
-class NonBoolCondExn : public SemanticExn {
-};
-
-class NonIntegralAllocationSizeExn : public SemanticExn {
-    public:
-        NonIntegralAllocationSizeExn() {
-            this->message =
-                "expression in new-declarator must have integral type";
-        }
-};
-
-class NonNumericalOperandExn : public SemanticExn {
-};
-
-class NonEqTypeComparisonExn : public SemanticExn {
+        InvalidAssignExn(shared_ptr<Type>, shared_ptr<Type>, int);
 };
 
 class SymbolNotFoundExn : public SemanticExn {
