@@ -13,6 +13,7 @@
     }
 %}
 
+%locations
 %error-verbose
 
 /* representa um nó qualquer de nossa AST */
@@ -90,11 +91,11 @@ declaracao : dec_variaveis { $$ = $<var_decl>1; }
            | dec_funcao
            ;
 
-dec_variaveis : tipo lista_nomes PTVIRG { $$ = new VarDecl($<type>1, $<id_vec>2); }
+dec_variaveis : tipo lista_nomes PTVIRG { $$ = new VarDecl($<type>1, $<id_vec>2); $$->setLineno(@1.first_line); }
               ;
 
-tipo : tipo_base { $$ = new Type($1); }
-     | tipo ACOL FCOL { $<type>1->addArrDim(); $$ = $<type>1; }
+tipo : tipo_base { $$ = new Type($1); $$->setLineno(@1.first_line); }
+     | tipo ACOL FCOL { $<type>1->addArrDim(); }
      ;
 
 tipo_base : INT
@@ -102,23 +103,23 @@ tipo_base : INT
           | FLOAT
           ;
 
-lista_nomes : ID { $$ = new IdVec(); $$->add($1); }
+lista_nomes : ID { $$ = new IdVec(); $$->add($1); $$->setLineno(@1.first_line); }
             | lista_nomes VIRG ID { $<id_vec>1->add($3); }
             ;
 
-dec_funcao : tipo ID APAR parametros FPAR bloco { $$ = new FuncDecl($<type>1, $2, $<args>4, $<block>6); }
-           | VOID ID APAR parametros FPAR bloco { $$ = new FuncDecl(new Type($1), $2, $<args>4, $<block>6); }
+dec_funcao : tipo ID APAR parametros FPAR bloco { $$ = new FuncDecl($<type>1, $2, $<args>4, $<block>6); $$->setLineno(@2.first_line); }
+           | VOID ID APAR parametros FPAR bloco { $$ = new FuncDecl(new Type($1), $2, $<args>4, $<block>6); $$->setLineno(@2.first_line); }
            ;
 
 parametros : /* empty */ { $$ = new ArgsVec(); }
            | parametros_nao_vazio
            ;
 
-parametros_nao_vazio : parametro { $$ = new ArgsVec(); $$->add($<arg>1); }
+parametros_nao_vazio : parametro { $$ = new ArgsVec(); $$->add($<arg>1); $$->setLineno(@1.first_line); }
                      | parametros_nao_vazio VIRG parametro { $1->add($<arg>3); }
                      ;
 
-parametro : tipo ID { $$ = new Arg($<type>1, $2); }
+parametro : tipo ID { $$ = new Arg($<type>1, $2); $$->setLineno(@1.first_line); }
           ;
 
 bloco : ACHAVE local_var_decls comandos FCHAVE { $$ = new Block($<var_decl_vec>2, $<command_vec>3); }
@@ -132,24 +133,24 @@ comandos : /* empty */ { $$ = new CommandVec(); }
          | comandos comando { $<command_vec>1->add($<command>2); }
          ;
 
-comando : stmt { $$ = new Command($<stmt>1); }
+comando : stmt { $$ = new Command($<stmt>1); $$->setLineno(@1.first_line); }
         ;
 
-stmt : IF APAR exp FPAR comando { $$ = new IfStmt($<exp>3, $<command>5); }
-     | IF APAR exp FPAR comando ELSE comando { $$ = new IfStmt($<exp>3, $<command>5, $<command>7); }
-     | WHILE APAR exp FPAR comando { $$ = new WhileStmt($<exp>3, $<block>5); }
-     | var ATRIB exp PTVIRG { $$ = new AssignStmt((Var*) $<exp>1, $<exp>3); }
-     | RETURN PTVIRG { $$ = new ReturnStmt(); }
-     | RETURN exp PTVIRG { $$ = new ReturnStmt($<exp>2); }
-     | chamada PTVIRG { $$ = new FuncCallStmt($<func_call_exp>1); }
+stmt : IF APAR exp FPAR comando { $$ = new IfStmt($<exp>3, $<command>5); $$->setLineno(@1.first_line); }
+     | IF APAR exp FPAR comando ELSE comando { $$ = new IfStmt($<exp>3, $<command>5, $<command>7); $$->setLineno(@1.first_line); }
+     | WHILE APAR exp FPAR comando { $$ = new WhileStmt($<exp>3, $<block>5); $$->setLineno(@1.first_line); }
+     | var ATRIB exp PTVIRG { $$ = new AssignStmt((Var*) $<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
+     | RETURN PTVIRG { $$ = new ReturnStmt(); $$->setLineno(@1.first_line); }
+     | RETURN exp PTVIRG { $$ = new ReturnStmt($<exp>2); $$->setLineno(@1.first_line); }
+     | chamada PTVIRG { $$ = new FuncCallStmt($<func_call_exp>1); $$->setLineno(@1.first_line); }
      | bloco { $$ = new BlockStmt($<block>1); }
      ;
 
-var : ID { $$ = new Var($1); }
-    | var ACOL exp FCOL { $$ = ((Var *) $<exp>1)->push_subscript($<exp>3); }
+var : ID { $$ = new Var($1); $$->setLineno(@1.first_line); }
+    | var ACOL exp FCOL { $$ = ((Var *) $<exp>1)->push_subscript($<exp>3); $$->setLineno(@1.first_line); }
     ;
 
-exp : NUMINT { $$ = new IntLiteral($<string>1); }
+exp : NUMINT { $$ = new IntLiteral($<string>1); $$->setLineno(@1.first_line); }
     | NUMFLOAT { string s(*$1);
                  if (s[0] == '.') {
                    s = "0" + s;
@@ -157,28 +158,29 @@ exp : NUMINT { $$ = new IntLiteral($<string>1); }
                    s = s + "0";
                  }
                  $$ = new FloatLiteral(&s);
+				 $$->setLineno(@1.first_line);
                }
-    | STRING { $$ = new StringLiteral($<string>1); }
+    | STRING { $$ = new StringLiteral($<string>1); $$->setLineno(@1.first_line); }
     | var
     | APAR exp FPAR { $$ = $<exp>2; }
     | chamada { $$ = $<func_call_exp>1; }
-    | NEW tipo ACOL exp FCOL { $$ = new NewExp($<type>2, $<exp>4); }
-    | SUB exp { $$ = new MinusExp($<exp>2); }
-    | exp SOMA exp { $$ = new SumExp($<exp>1, $<exp>3); }
-    | exp SUB exp { $$ = new SubExp($<exp>1, $<exp>3); }
-    | exp MULT exp { $$ = new MultExp($<exp>1, $<exp>3); }
-    | exp DIV exp { $$ = new DivExp($<exp>1, $<exp>3); }
-    | exp IGUAL exp { $$ = new EqExp($<exp>1, $<exp>3); }
-    | exp MENORIG exp { $$ = new LowerEqExp($<exp>1, $<exp>3); }
-    | exp MAIORIG exp { $$ = new GreaterEqExp($<exp>1, $<exp>3); }
-    | exp MENORQ exp { $$ = new LowerExp($<exp>1, $<exp>3); }
-    | exp MAIORQ exp { $$ = new GreaterExp($<exp>1, $<exp>3); }
-    | NAO exp { $$ = new NotExp($<exp>2); }
-    | exp E exp { $$ = new AndExp($<exp>1, $<exp>3); }
-    | exp OU exp { $$ = new OrExp($<exp>1, $<exp>3); }
+    | NEW tipo ACOL exp FCOL { $$ = new NewExp($<type>2, $<exp>4); $$->setLineno(@1.first_line); }
+    | SUB exp { $$ = new MinusExp($<exp>2); $$->setLineno(@1.first_line); }
+    | exp SOMA exp { $$ = new SumExp($<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
+    | exp SUB exp { $$ = new SubExp($<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
+    | exp MULT exp { $$ = new MultExp($<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
+    | exp DIV exp { $$ = new DivExp($<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
+    | exp IGUAL exp { $$ = new EqExp($<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
+    | exp MENORIG exp { $$ = new LowerEqExp($<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
+    | exp MAIORIG exp { $$ = new GreaterEqExp($<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
+    | exp MENORQ exp { $$ = new LowerExp($<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
+    | exp MAIORQ exp { $$ = new GreaterExp($<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
+    | NAO exp { $$ = new NotExp($<exp>2); $$->setLineno(@1.first_line); }
+    | exp E exp { $$ = new AndExp($<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
+    | exp OU exp { $$ = new OrExp($<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
     ;
 
-chamada : ID APAR lista_exp FPAR { $$ = new FuncCallExp($1, $<exp_vec>3); }
+chamada : ID APAR lista_exp FPAR { $$ = new FuncCallExp($1, $<exp_vec>3); $$->setLineno(@1.first_line); }
         ;
 
 lista_exp : /* empty */ { $$ = new ExpVec(); }

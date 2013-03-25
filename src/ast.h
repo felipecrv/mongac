@@ -67,10 +67,14 @@ shared_ptr<Type> the_void_type();
 
 class AstNode {
     public:
+        int lineno;
+
+        AstNode() : lineno(-1) {}
         virtual string toStr() const = 0;
         virtual shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>) {
             return the_void_type();
         }
+        void setLineno(int ln) { lineno = ln; }
 };
 
 string toStr(const AstNode& node);
