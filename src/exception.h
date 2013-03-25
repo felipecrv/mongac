@@ -21,15 +21,16 @@ class SemanticExn : public std::exception {
 
     protected:
         string message;
-        int lineno;
 
     public:
+        int lineno;
+
         SemanticExn() { this->message = "semantic exception"; }
         SemanticExn(string msg) : message(msg) {}
-        const char* what() const noexcept { return this->message.c_str(); }
+        virtual const char* what() const noexcept { return this->message.c_str(); }
         bool errorEmitted() { return error_emitted; }
 
-        void emitError() {
+        virtual void emitError() {
             if (!error_emitted) {
                 std::cerr << "error:" << lineno << ": " << this->message << std::endl;
                 error_emitted = true;
@@ -38,7 +39,9 @@ class SemanticExn : public std::exception {
 
 };
 
-class MissingSymExn : public SemanticExn {
+class DirtyScopeExn : public SemanticExn {
+    virtual const char* what() const noexcept { return "DirtyScopeExn"; }
+    virtual void emitError() {}
 };
 
 class SymbolRedeclExn : public SemanticExn {

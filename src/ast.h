@@ -212,7 +212,7 @@ class Env {
 
     public:
         shared_ptr<Type> findSymbolType(const string& ident)
-            throw(MissingSymExn, SymbolNotFoundExn);
+            throw(DirtyScopeExn, SymbolNotFoundExn);
         void addSymbol(const std::string& ident, shared_ptr<Type> type)
             throw(SymbolRedeclExn);
 };
@@ -252,7 +252,15 @@ class IdentExp : public Exp {
         IdentExp(string* id) : id(unique_ptr<string>(id)) {}
         string getIdentStr() const { return *id; }
         string toStr() const { return *id; }
-        shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type>) { return env->findSymbolType(*id); }
+        shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type>) {
+            try {
+                return env->findSymbolType(*id);
+            } catch (SymbolNotFoundExn& e) {
+                e.lineno = this->lineno;
+                e.emitError();
+                throw e;
+            }
+        }
 };
 
 class IntLiteral : public Exp {

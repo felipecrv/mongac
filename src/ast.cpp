@@ -160,12 +160,11 @@ bool FuncType::operator==(const Type& t) const {
 }
 
 shared_ptr<Type> Env::findSymbolType(const string& ident)
-        throw(MissingSymExn, SymbolNotFoundExn) {
+        throw(DirtyScopeExn, SymbolNotFoundExn) {
     for (int i = ((int) scopes.size()) - 1; i >= 0; i--) {
         // we can't rely on this scope if a symbol is missing
         if (scopes[i].missing_symbol) {
-            MissingSymExn e;
-            e.emitError();
+            DirtyScopeExn e;
             throw e;
         }
         auto sym_pair = scopes[i].sym_table.find(ident);
@@ -177,7 +176,6 @@ shared_ptr<Type> Env::findSymbolType(const string& ident)
     }
     {
         SymbolNotFoundExn e(ident);
-        e.emitError();
         throw e;
     }
 }
@@ -191,7 +189,6 @@ void Env::addSymbol(const std::string& ident, shared_ptr<Type> type)
     if (sym_pair != cur_scope.sym_table.end()) {
         cur_scope.missing_symbol = true;
         SymbolRedeclExn e(ident, sym_pair->second, type);
-        e.emitError();
         throw e;
     }
     cur_scope.sym_table[ident] = type;
@@ -235,10 +232,17 @@ shared_ptr<Type> Block::typeCheck(Env* env, shared_ptr<Type> expected_type) {
 
 shared_ptr<Type> VarDecl::typeCheck(Env* env, shared_ptr<Type> et) {
     shared_ptr<Type> symbol_type(new Type(this->type.get()));
-    for (auto ident_it = this->idents->items.begin();
-            ident_it != this->idents->items.end();
-            ident_it++) {
-        env->addSymbol(**ident_it, symbol_type);
+    try {
+        for (auto ident_it = this->idents->items.begin();
+                ident_it != this->idents->items.end();
+                ident_it++) {
+            env->addSymbol(**ident_it, symbol_type);
+        }
+    } catch (SymbolRedeclExn& e) {
+        // TODO: would be cool to have each name's lineno
+        e.lineno = this->lineno;
+        e.emitError();
+        throw e;
     }
     return the_void_type();
 }
@@ -256,15 +260,29 @@ shared_ptr<Type> FuncDecl::typeCheck(Env* env, shared_ptr<Type> et) {
     shared_ptr<FuncType> func_type(new FuncType(arg_types, ret_t));
 
     // add function to the current scope
-    env->addSymbol(*id, func_type);
+    try {
+        env->addSymbol(*id, func_type);
+    } catch (SymbolRedeclExn& e) {
+        // TODO: would be cool to have the id's lineno
+        e.lineno = this->lineno;
+        e.emitError();
+        throw e;
+    }
 
     // create a new scope, add the arguments to this scope and then type
     // check the function block
     {
         EnvScopeGuard g(env);
-        for (auto it = args->items.begin(); it != args->items.end(); it++) {
-            auto t = shared_ptr<Type>(new Type((*it)->type.get()));
-            env->addSymbol(*(*it)->id, t);
+        try {
+            for (auto it = args->items.begin(); it != args->items.end(); it++) {
+                auto t = shared_ptr<Type>(new Type((*it)->type.get()));
+                env->addSymbol(*(*it)->id, t);
+            }
+        } catch (SymbolRedeclExn& e) {
+            // TODO: would be cool to have the argument id lineno
+            e.lineno = this->lineno;
+            e.emitError();
+            throw e;
         }
         try {
             auto block_type = block->typeCheck(env, /* expected= */shared_ptr<Type>(new Type(ret_t)));
@@ -284,7 +302,14 @@ shared_ptr<Type> FuncDecl::typeCheck(Env* env, shared_ptr<Type> et) {
 
 shared_ptr<Type> FuncCallExp::typeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking function call expression");
-    auto symbol_type = env->findSymbolType(func_ident->getIdentStr());
+    shared_ptr<Type> symbol_type;
+    try {
+        symbol_type = env->findSymbolType(func_ident->getIdentStr());
+    } catch (SymbolNotFoundExn& e) {
+        e.lineno = this->lineno;
+        e.emitError();
+        throw e;
+    }
     if (symbol_type->isFuncType()) {
         auto func_type = (FuncType*) symbol_type.get();
         if (func_type->arg_types->size() != arg_exps->size()) {

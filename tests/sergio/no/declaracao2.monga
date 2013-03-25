@@ -7,6 +7,4 @@ void f() {
 
 void a() {
 	return;
-
-
-} 
+}
