@@ -21,6 +21,7 @@ class SemanticExn : public std::exception {
 
     protected:
         string message;
+        int lineno;
 
     public:
         SemanticExn() { this->message = "semantic exception"; }
@@ -30,7 +31,7 @@ class SemanticExn : public std::exception {
 
         void emitError() {
             if (!error_emitted) {
-                std::cerr << "error: " << this->message << std::endl;
+                std::cerr << "error:" << lineno << ": " << this->message << std::endl;
                 error_emitted = true;
             }
         }
@@ -42,19 +43,12 @@ class MissingSymExn : public SemanticExn {
 
 class SymbolRedeclExn : public SemanticExn {
     public:
-        string ident;
-        shared_ptr<Type> fst_decl_type;
-        shared_ptr<Type> snd_decl_type;
-
         SymbolRedeclExn(string, shared_ptr<Type>, shared_ptr<Type>);
 };
 
 class FuncCallArityMismatchExn : public SemanticExn {
     public:
-        FuncCallArityMismatchExn(string s, unsigned int func_n, unsigned int call_n) {
-            this->message = "invalid call to function '" + s + "'. It can take " +
-                to_string(func_n) + " argument(s) but passed " + to_string(call_n);
-        }
+        FuncCallArityMismatchExn(string, unsigned int, unsigned int);
 };
 
 class InvalidArrSubscriptExn : public SemanticExn {
@@ -65,14 +59,8 @@ class InvalidArrSubscriptExn : public SemanticExn {
 };
 
 class FuncCallTypeMismatchExn : public SemanticExn {
-    private:
-        string ident;
-        shared_ptr<Type> expected_type;
-        shared_ptr<Type> passed_type;
-        unsigned int arg_pos;
-
     public:
-        FuncCallTypeMismatchExn(string, Type*, Type*, unsigned int);
+        FuncCallTypeMismatchExn(string, Type*, Type*, unsigned int) noexcept;
 };
 
 class ReturnTypeMismatchExn : public SemanticExn {
@@ -87,10 +75,6 @@ class IdentifierNotAFuncExn : public SemanticExn {
 };
 
 class InvalidAssignExn : public SemanticExn {
-    private:
-        shared_ptr<Type> lvalue_type;
-        shared_ptr<Type> rvalue_type;
-
     public:
         InvalidAssignExn(shared_ptr<Type>, shared_ptr<Type>);
 };
@@ -116,9 +100,6 @@ class NonEqTypeComparisonExn : public SemanticExn {
 };
 
 class SymbolNotFoundExn : public SemanticExn {
-    private:
-        string symbol;
-
     public:
         SymbolNotFoundExn(const string&) noexcept;
 };
