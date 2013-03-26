@@ -74,6 +74,11 @@ class SymbolNotFoundExn : public SemanticExn {
         SymbolNotFoundExn(const string&) noexcept;
 };
 
+class NoMatchingFuncCall : public SemanticExn {
+    public:
+        NoMatchingFuncCall(const FuncCallExp*, string&);
+};
+
 }; // namespace monga
 
 #endif /* EXCEPTION_H_ */

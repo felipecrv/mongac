@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <cstdio>
+#include <utility>
 #include "ast.h"
 #include "exception.h"
 using namespace monga;
@@ -43,11 +44,14 @@ bool Type::isOrdType() const {
 BoolType::BoolType() : Type(IF) {}
 BoolType::BoolType(BoolType* t) : Type(t) {}
 FuncType::FuncType(TypeVec* arg_types, Type* ret_type)
-    : Type(RETURN),
-    arg_types(shared_ptr<TypeVec>(arg_types)),
-    ret_type(shared_ptr<Type>(ret_type)) {}
+        : Type(RETURN) {
+    variations.push_back(make_pair(
+           shared_ptr<TypeVec>(arg_types),
+           shared_ptr<Type>(ret_type)));
+}
+
 FuncType::FuncType(FuncType* t)
-    : Type(t), arg_types(t->arg_types), ret_type(t->ret_type) {}
+    : Type(t), variations(t->variations) {}
 
 bool Type::canSubstituteBy(Type replacement) const {
     // if arrays of any dimension, the scalar types should totally match for a
@@ -125,11 +129,15 @@ string Type::typeExp() const {
 }
 
 string FuncType::toStr() const {
-    string s = "(t " + arg_types->toStr() + " " + ret_type->toStr() + ")";
+    // TODO: serialize all variations
+    string s = "(t " + variations[0].first->toStr() +
+        " " + variations[0].second->toStr() + ")";
     return s;
 }
 
-string FuncType::typeExp() const {
+string FuncType::typeExp(unsigned int ith_vartn) const {
+    auto arg_types = variations[ith_vartn].first;
+    auto ret_type = variations[ith_vartn].second;
     string type = "(";
     for (auto it = arg_types->items.begin(); it != arg_types->items.end();)  {
         type += (*it)->typeExp();
@@ -145,16 +153,27 @@ bool Type::operator==(Type t2) const {
     return this->type_tok == t2.type_tok && this->arr_dim == t2.arr_dim;
 }
 
+// we check if the first variation of the function type t is in this' variations
 bool FuncType::operator==(const Type& t) const {
     if (t.isFuncType()) {
-        unsigned int arity = this->arg_types->size();
         const FuncType& ft = (const FuncType&) t;
-        bool equals =
-            arity == ft.arg_types->size() && *this->ret_type == *ft.ret_type;
-        for (unsigned int i = 0; equals && i < arity; i++) {
-            equals = *this->arg_types->items[i] == *ft.arg_types->items[i];
+        auto ft_arg_types = ft.variations[0].first;
+        auto ft_ret_type = ft.variations[0].second;
+
+        for (auto it = variations.begin(); it != variations.end(); it++) {
+            auto arg_types = it->first;
+            auto ret_type = it->second;
+            unsigned int arity = arg_types->size();
+
+            bool equals =
+                arity == ft_arg_types->size() && *ret_type == *ft_ret_type;
+            for (unsigned int i = 0; equals && i < arity; i++) {
+                equals = *arg_types->items[i] == *ft_arg_types->items[i];
+            }
+            if (equals) {
+                return true;
+            }
         }
-        return equals;
     }
     return false;
 }
@@ -187,6 +206,14 @@ void Env::addSymbol(const std::string& ident, shared_ptr<Type> type)
     Scope& cur_scope = scopes[scopes.size() - 1];
     auto sym_pair = cur_scope.sym_table.find(ident);
     if (sym_pair != cur_scope.sym_table.end()) {
+        if (sym_pair->second->isFuncType()) {
+            FuncType* func_type_from_sym = (FuncType*) sym_pair->second.get();
+            FuncType* func_type = (FuncType*) type.get();
+            if (*func_type_from_sym != *func_type) {
+                func_type_from_sym->variations.push_back(func_type->variations[0]);
+                return;
+            }
+        }
         cur_scope.missing_symbol = true;
         SymbolRedeclExn e(ident, sym_pair->second, type);
         throw e;
@@ -312,31 +339,92 @@ shared_ptr<Type> FuncCallExp::typeCheck(Env* env, shared_ptr<Type> et) {
     }
     if (symbol_type->isFuncType()) {
         auto func_type = (FuncType*) symbol_type.get();
-        if (func_type->arg_types->size() != arg_exps->size()) {
-            FuncCallArityMismatchExn e(func_type->arg_types->size(), this);
+
+        // try to pick which variation of the function will be called
+        unsigned int matched = 0;
+        shared_ptr<Type> ret_type;
+
+        // type checks the expressions passed to the function
+        vector<shared_ptr<Type> > exp_types;
+        for (auto it = arg_exps->items.begin();
+                it != arg_exps->items.end();
+                it++) {
+            auto exp_type = (*it)->typeCheck(env, et);
+            exp_types.push_back(exp_type);
+        }
+
+        // match against all possible variations
+        for (auto it = func_type->variations.begin();
+                it != func_type->variations.end();
+                it++) {
+            auto arg_types = it->first;
+            ret_type = it->second;
+
+            // checks arity for this variation
+            if (arg_types->size() != arg_exps->size()) {
+                // if there's a single variation we fail with a more specific
+                // message
+                if (func_type->variations.size() == 1) {
+                    FuncCallArityMismatchExn e(arg_types->size(), this);
+                    e.emitError();
+                    throw e;
+                }
+                continue;
+            }
+
+            unsigned int i = 1;
+            auto arg_type_it = arg_types->items.begin();
+            auto exp_it = arg_exps->items.begin();
+            auto exp_type_it = exp_types.begin();
+            for (; arg_type_it != arg_types->items.end();
+                    i++, arg_type_it++, exp_it++, exp_type_it++) {
+                if (!(*arg_type_it)->canSubstituteBy(**exp_type_it)) {
+                    // if there's a single variation we fail with a more specific
+                    // message
+                    if (func_type->variations.size() == 1) {
+                        FuncCallTypeMismatchExn e(
+                                func_ident->getIdentStr(),
+                                new Type((*arg_type_it).get()),
+                                new Type(**exp_type_it),
+                                i,
+                                (*exp_it)->lineno);
+                        e.emitError();
+                        throw e;
+                    }
+                    goto next_variation;
+                }
+            }
+            ++matched;
+next_variation:
+            continue;
+        }
+
+        if (!matched) {
+            string exp_types_as_str = "";
+            bool first = true;
+            for(auto exp_type_it = exp_types.begin();
+                    exp_type_it != exp_types.end();
+                    exp_type_it++) {
+                if (!first) {
+                    exp_types_as_str += ", ";
+                } else {
+                    first = false;
+                }
+                exp_types_as_str += (*exp_type_it)->typeExp();
+            }
+            NoMatchingFuncCall e(this, exp_types_as_str);
             e.emitError();
             throw e;
         }
-
-        auto type_it = func_type->arg_types->items.begin();
-        auto exp_it = arg_exps->items.begin();
-        for (unsigned int i = 1;
-                type_it != func_type->arg_types->items.end();
-                type_it++, exp_it++, i++) {
-            auto exp_type = (*exp_it)->typeCheck(env, et);
-            if (!(*type_it)->canSubstituteBy(*exp_type)) {
-                FuncCallTypeMismatchExn e(
-                        func_ident->getIdentStr(),
-                        new Type((*type_it).get()),
-                        new Type(exp_type.get()),
-                        i,
-                        (*exp_it)->lineno);
-                e.emitError();
-                throw e;
-            }
+        if (matched > 1) {
+            SemanticExn e("ambiguous function call to '" +
+                    func_ident->getIdentStr() +
+                    "'. " + to_string(matched) + " matches found",
+                    this->lineno);
+            e.emitError();
+            throw e;
         }
-
-        return func_type->ret_type;
+        return ret_type;
     } else {
         IdentifierNotAFuncExn e(func_ident->getIdentStr(), symbol_type, this->lineno);
         e.emitError();

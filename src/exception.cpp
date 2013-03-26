@@ -52,7 +52,7 @@ FuncCallTypeMismatchExn::FuncCallTypeMismatchExn(
         unsigned int arg_pos,
         int lineno) noexcept {
     this->lineno = lineno;
-    this->message = "incompatible type for argument " +
+    this->message = "incompatible types for argument " +
         std::to_string(arg_pos) +
         " of '" + id + "'. Expected '" +
         expected->typeExp() + "' but argument is of type '" +
@@ -88,4 +88,12 @@ IdentifierNotAFuncExn::IdentifierNotAFuncExn(
     this->lineno = lineno;
     this->message = "'" + id + "' is not a function but a '" +
         type_instead->typeExp() + "'";
+}
+
+NoMatchingFuncCall::NoMatchingFuncCall(const FuncCallExp* func_call, string& exp_types_as_str) {
+    this->lineno = func_call->lineno;
+    //string func_signature = func_call->func_ident->getIdentStr() + "(";
+    this->message = "no matching function for call to '" +
+        func_call->func_ident->getIdentStr() + "(" +
+        exp_types_as_str + ")'";
 }

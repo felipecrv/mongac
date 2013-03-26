@@ -134,10 +134,13 @@ class BoolType : public Type {
 
 class FuncType : public Type {
     friend class FuncCallExp;
+    friend class Env;
+    typedef pair<shared_ptr<TypeVec>, shared_ptr<Type> > FuncTypeVariation;
 
     private:
-        shared_ptr<TypeVec> arg_types;
-        shared_ptr<Type> ret_type;
+        //shared_ptr<TypeVec> arg_types;
+        //shared_ptr<Type> ret_type;
+        vector<FuncTypeVariation> variations;
 
     public:
         FuncType(TypeVec*, Type*);
@@ -152,9 +155,15 @@ class FuncType : public Type {
         bool isOrdType() const { return false; }
 
         string toStr() const;
-        string typeExp() const;
+        string typeExp(unsigned int) const;
+        string typeExp() const {
+            return this->typeExp(0);
+        }
 
         bool operator==(const Type& t) const;
+        bool operator!=(const Type& t) const {
+            return !(*this == t);
+        }
 };
 
 template <typename T>
@@ -308,7 +317,8 @@ class StringLiteral : public Exp {
 };
 
 class FuncCallExp : public Exp {
-    friend FuncCallArityMismatchExn;
+    friend class FuncCallArityMismatchExn;
+    friend class NoMatchingFuncCall;
 
     private:
         unique_ptr<IdentExp> func_ident;
