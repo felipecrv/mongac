@@ -99,7 +99,7 @@ class Type : public AstNode {
         }
 
         virtual bool isFuncType() const { return false; }
-        virtual bool isBool() const { return false; }
+        virtual bool isBool() const { return !this->isVoid(); }
         virtual bool isVoid() const;
         virtual bool isReal() const;
         virtual bool isIntegral() const;
@@ -126,10 +126,10 @@ class BoolType : public Type {
         bool isBool() const { return true; }
         bool isVoid() const { return false; }
         bool isReal() const { return false; }
-        bool isIntegral() const { return false; }
-        bool isNumerical() const { return false; }
+        bool isIntegral() const { return true; }
+        bool isNumerical() const { return true; }
         bool isEqType() const { return true; }
-        bool isOrdType() const { return false; }
+        bool isOrdType() const { return true; }
 };
 
 class FuncType : public Type {
@@ -138,8 +138,6 @@ class FuncType : public Type {
     typedef pair<shared_ptr<TypeVec>, shared_ptr<Type> > FuncTypeVariation;
 
     private:
-        //shared_ptr<TypeVec> arg_types;
-        //shared_ptr<Type> ret_type;
         vector<FuncTypeVariation> variations;
 
     public:

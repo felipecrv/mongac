@@ -32,7 +32,7 @@ bool Type::isNumerical() const {
 bool Type::isEqType() const {
     return
         (type_tok == CHAR && this->arr_dim <= 1) || // string is eq type
-        (type_tok == INT && this->arr_dim == 0);
+        ((type_tok == INT || type_tok == FLOAT) && this->arr_dim == 0);
 }
 bool Type::isOrdType() const {
     return
@@ -40,8 +40,8 @@ bool Type::isOrdType() const {
         ((type_tok == INT || type_tok == FLOAT) && this->arr_dim == 0);
 }
 
-// we need a type_tok that's not equal to VOID, INT, FLOAT, or CHAR
-BoolType::BoolType() : Type(IF) {}
+// we use INT as type_tok for booleans
+BoolType::BoolType() : Type(INT) {}
 BoolType::BoolType(BoolType* t) : Type(t) {}
 FuncType::FuncType(TypeVec* arg_types, Type* ret_type)
         : Type(RETURN) {
