@@ -2,7 +2,6 @@
 #define PASCAL_CODE_GEN_H_
 
 #include "ast.h"
-#include "CodeGen.h"
 
 namespace monga {
 
@@ -10,6 +9,7 @@ class PascalCodeGen : CodeGen {
 private:
     string toPascalTypeStr(Type t) const;
     void gen(const monga::VarDecl*, std::ostream&);
+    void gen(const monga::VarDeclVec*, std::ostream&);
     void gen(const monga::Exp*, std::ostream&);
     void gen(const monga::Stmt*, std::ostream&);
     void gen(const monga::Arg*, ostream&);

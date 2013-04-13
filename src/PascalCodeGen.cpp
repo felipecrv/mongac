@@ -138,6 +138,12 @@ void PascalCodeGen::gen(const FuncDecl* func_decl, ostream& os) {
     os << "End;" << endl;
 }
 
+void PascalCodeGen::gen(const VarDeclVec* var_decls, ostream& os) {
+    for (const auto& var_decl : var_decls->items) {
+        gen(var_decl.get(), os);
+        os << endl;
+    }
+}
 
 void PascalCodeGen::gen(const Prog* prog, ostream& os) {
     os << "Program AProgram;" << endl;
