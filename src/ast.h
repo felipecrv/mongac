@@ -66,6 +66,8 @@ typedef Vec<Command> CommandVec;
 shared_ptr<Type> the_void_type();
 
 class AstNode {
+    friend class PascalCodeGen;
+
     public:
         int lineno;
 
@@ -83,6 +85,7 @@ Type if_stmt_type(Type, Type);
 
 class Type : public AstNode {
     friend class Var;
+    friend class PascalCodeGen;
 
     private:
         int type_tok;
@@ -235,6 +238,7 @@ class EnvScopeGuard {
 
 class Arg : public AstNode {
     friend class FuncDecl;
+    friend class PascalCodeGen;
 
     private:
         unique_ptr<Type> type;
@@ -576,7 +580,8 @@ class Decl : public AstNode {
 };
 
 class VarDecl : public Decl {
-    friend Block;
+    friend class Block;
+    friend class PascalCodeGen;
 
     private:
         unique_ptr<Type> type;
@@ -608,6 +613,8 @@ class VarDeclVec : public Vec<VarDecl> {
 };
 
 class Block : public AstNode {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<VarDeclVec> vars;
         unique_ptr<CommandVec> commands;
@@ -628,6 +635,8 @@ class Stmt : public AstNode {
 };
 
 class BlockStmt : public Stmt {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<Block> block;
 
@@ -640,6 +649,8 @@ class BlockStmt : public Stmt {
 };
 
 class Command : public AstNode {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<Stmt> stmt;
 
@@ -654,6 +665,8 @@ class Command : public AstNode {
 };
 
 class IfStmt : public Stmt {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<Exp> cond_exp;
         unique_ptr<Command> then_cmd;
@@ -678,6 +691,8 @@ class IfStmt : public Stmt {
 };
 
 class WhileStmt : public Stmt {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<Exp> cond_exp;
         unique_ptr<Block> block;
@@ -696,6 +711,8 @@ class WhileStmt : public Stmt {
 };
 
 class AssignStmt : public Stmt {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<Var> var;
         unique_ptr<Exp> rvalue;
@@ -714,6 +731,8 @@ class AssignStmt : public Stmt {
 };
 
 class ReturnStmt : public Stmt {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<Exp> exp;
 
@@ -731,6 +750,8 @@ class ReturnStmt : public Stmt {
 };
 
 class FuncCallStmt : public Stmt {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<FuncCallExp> exp;
 
@@ -742,6 +763,8 @@ class FuncCallStmt : public Stmt {
 };
 
 class FuncDecl : public Decl {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<Type> ret_type;
         unique_ptr<string> id;
