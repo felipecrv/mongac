@@ -7,12 +7,11 @@
 
 namespace monga {
 
-class PascalCodeGen : CodeGen {
+class PascalCodeGen : public CodeGen {
 private:
-    string toPascalTypeStr(Type t) const;
+    std::string current_func_ident;
 
-    void gen(const monga::VarDecl*, std::ostream&);
-    void gen(const monga::VarDeclVec*, std::ostream&);
+    string toPascalTypeStr(Type t) const;
 
     template <class BinaryExpClass>
     void genBinaryExp(const BinaryExpClass* exp, std::string op, std::ostream& os) {
@@ -22,6 +21,11 @@ private:
         exp->exp2->generateCode(this, os);
         os << ")";
     }
+
+public:
+
+    void gen(const monga::VarDecl*, std::ostream&);
+    void gen(const monga::VarDeclVec*, std::ostream&);
 
     void gen(const monga::SumExp*, std::ostream&);
     void gen(const monga::SubExp*, std::ostream&);
@@ -58,7 +62,6 @@ private:
     void gen(const monga::Block*, std::ostream&);
     void gen(const monga::Command*, std::ostream&);
 
-public:
     void gen(const monga::Prog*, std::ostream&);
 };
 

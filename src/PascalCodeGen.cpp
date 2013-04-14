@@ -186,7 +186,7 @@ void PascalCodeGen::gen(const ReturnStmt* return_stmt, ostream& os) {
     if (return_stmt->exp == nullptr) {
         os << "Exit;" << endl;
     } else {
-        os << "FUNC_NAME := ";
+        os << this->current_func_ident << " := ";
         return_stmt->exp->generateCode(this, os);
         os << ";" << endl << "Exit;" << endl;
     }
@@ -212,6 +212,8 @@ void PascalCodeGen::gen(const Arg* arg, ostream& os) {
 
 void PascalCodeGen::gen(const FuncDecl* func_decl, ostream& os) {
     bool is_procedure = func_decl->ret_type->isVoid();
+    this->current_func_ident = *func_decl->id;
+
     if (is_procedure) {
         os << "Procedure " << *func_decl->id << ";" << endl;
     } else {
