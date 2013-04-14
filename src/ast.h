@@ -50,10 +50,12 @@ class VarDecl;
 class VarDeclVec;
 class Block;
 class Stmt;
+class BlockStmt;
 class Command;
 class IfStmt;
 class WhileStmt;
 class AssignStmt;
+class FuncCallStmt;
 class ReturnStmt;
 class FuncDecl;
 class Prog;
@@ -72,10 +74,38 @@ public:
     virtual void gen(const Prog*, std::ostream& os) = 0;
     virtual void gen(const VarDeclVec*, std::ostream&) = 0;
     virtual void gen(const VarDecl*, std::ostream&) = 0;
-    virtual void gen(const Exp*, std::ostream&) = 0;
-    virtual void gen(const Stmt*, std::ostream&) = 0;
+
+    virtual void gen(const SumExp*, std::ostream&) = 0;
+    virtual void gen(const SubExp*, std::ostream&) = 0;
+    virtual void gen(const MultExp*, std::ostream&) = 0;
+    virtual void gen(const DivExp*, std::ostream&) = 0;
+    virtual void gen(const EqExp*, std::ostream&) = 0;
+    virtual void gen(const GreaterEqExp*, std::ostream&) = 0;
+    virtual void gen(const LowerEqExp*, std::ostream&) = 0;
+    virtual void gen(const LowerExp*, std::ostream&) = 0;
+    virtual void gen(const GreaterExp*, std::ostream&) = 0;
+    virtual void gen(const AndExp*, std::ostream&) = 0;
+    virtual void gen(const OrExp*, std::ostream&) = 0;
+
+    virtual void gen(const Var*, std::ostream&) = 0;
+    virtual void gen(const IdentExp*, std::ostream&) = 0;
+    virtual void gen(const IntLiteral*, std::ostream&) = 0;
+    virtual void gen(const FloatLiteral*, std::ostream&) = 0;
+    virtual void gen(const StringLiteral*, std::ostream&) = 0;
+    virtual void gen(const FuncCallExp*, std::ostream&) = 0;
+    virtual void gen(const NewExp*, std::ostream&) = 0;
+
+    virtual void gen(const MinusExp*, std::ostream&) = 0;
+    virtual void gen(const NotExp*, std::ostream&) = 0;
+
+    virtual void gen(const IfStmt*, std::ostream&) = 0;
+    virtual void gen(const BlockStmt*, std::ostream&) = 0;
+    virtual void gen(const WhileStmt*, std::ostream&) = 0;
+    virtual void gen(const AssignStmt*, std::ostream&) = 0;
+    virtual void gen(const ReturnStmt*, std::ostream&) = 0;
+    virtual void gen(const FuncCallStmt*, std::ostream&) = 0;
+
     virtual void gen(const Arg*, ostream&) = 0;
-    virtual void gen(const ArgsVec*, ostream&) = 0;
     virtual void gen(const FuncDecl*, std::ostream&) = 0;
     virtual void gen(const Block*, std::ostream&) = 0;
     virtual void gen(const Command*, std::ostream&) = 0;
@@ -268,12 +298,16 @@ class Arg : public AstNode {
         }
 
         string toStr() const { return "(arg " + type->toStr() + " " + *id + ")"; }
+
+        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
 };
 
 class Exp : public AstNode {
 };
 
 class IdentExp : public Exp {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<string> id;
 
@@ -289,21 +323,16 @@ class IdentExp : public Exp {
 };
 
 class IntLiteral : public Exp {
+    friend class PascalCodeGen;
+
     private:
-        long long val;
+        int val;
 
     public:
-        IntLiteral(string* s) {
-            // TODO: convert
-            // istringstream ss(*s);
-            // ss >> val;
-        }
+        IntLiteral(string* s) { val = std::stoi(*s); }
 
         string toStr() const {
-            string s = "NUMINT";
-            // TODO: convert
-            //ostringstream ss(s);
-            //ss << val;
+            string s = "NUMINT(" + std::to_string(val) + ")";
             return s;
         }
 
@@ -313,26 +342,21 @@ class IntLiteral : public Exp {
 };
 
 class FloatLiteral : public Exp {
+    friend class PascalCodeGen;
+
     private:
         double val;
 
     public:
-        FloatLiteral(string* s) {
-            // TODO: convert s to double
-            // val = atof(s->c_str());
-        }
-
-        string toStr() const {
-            // TODO: convert
-            return ".";
-        }
-
+        FloatLiteral(string* s) { val = std::atof(s->c_str()); }
+        string toStr() const { return std::to_string(val); }
         shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
-
         void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
 };
 
 class StringLiteral : public Exp {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<string> val;
 
@@ -347,6 +371,7 @@ class StringLiteral : public Exp {
 class FuncCallExp : public Exp {
     friend class FuncCallArityMismatchExn;
     friend class NoMatchingFuncCall;
+    friend class PascalCodeGen;
 
     private:
         unique_ptr<IdentExp> func_ident;
@@ -434,6 +459,8 @@ class NewExp : public Exp {
 };
 
 class MinusExp : public UnaryExp {
+    friend class PascalCodeGen;
+
     public:
         MinusExp(Exp* exp) : UnaryExp(exp) {}
         shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
@@ -570,6 +597,8 @@ class LowerEqExp : public ComparisonBinaryExp {
 };
 
 class NotExp : public UnaryExp {
+    friend class PascalCodeGen;
+
     public:
         NotExp(Exp* exp) : UnaryExp(exp) {}
         shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
@@ -584,6 +613,8 @@ class BoolBinaryExp : public BinaryExp {
 };
 
 class AndExp : public BoolBinaryExp {
+    friend class PascalCodeGen;
+
     public:
         AndExp(Exp* exp1, Exp* exp2) : BoolBinaryExp(exp1, exp2) {}
         string operatorStr() const { return "&&"; }
@@ -591,6 +622,8 @@ class AndExp : public BoolBinaryExp {
 };
 
 class OrExp : public BoolBinaryExp {
+    friend class PascalCodeGen;
+
     public:
         OrExp(Exp* exp1, Exp* exp2) : BoolBinaryExp(exp1, exp2) {}
         string operatorStr() const { return "||"; }
@@ -598,6 +631,8 @@ class OrExp : public BoolBinaryExp {
 };
 
 class Var : public Exp {
+    friend class PascalCodeGen;
+
     private:
         unique_ptr<IdentExp> ident_exp;
         Vec<Exp> arr_subscripts;

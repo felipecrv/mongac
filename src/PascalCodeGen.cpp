@@ -41,69 +41,168 @@ void PascalCodeGen::gen(const VarDecl* var_decl, ostream& os) {
     os << " : " << toPascalTypeStr(*var_decl->type) << ";";
 }
 
-void PascalCodeGen::gen(const Exp* exp, ostream& os) {
-    os << "<exp>";
+void PascalCodeGen::gen(const SumExp* exp, ostream& os) {
+    genBinaryExp<SumExp>(exp, "+", os);
 }
 
-void PascalCodeGen::gen(const Stmt* stmt, ostream& os) {
-    if (typeid(*stmt) == typeid(IfStmt)) {
-        auto if_stmt = (const IfStmt*) stmt;
-        os << "If (";
-        gen(if_stmt->cond_exp.get(), os);
-        os << ") Then" << endl;
-        if (if_stmt->else_cmd == nullptr) {
-            os << "Begin" << endl;
-            gen(if_stmt->then_cmd.get(), os);
-            os << "End;" << endl;
-        } else {
-            os << "Begin" << endl;
-            gen(if_stmt->then_cmd.get(), os);
-            os << "End" << endl;
-            os << "else" << endl;
-            os << "Begin" << endl;
-            gen(if_stmt->else_cmd.get(), os);
-            os << "End;" << endl;
-        }
-    } else if (typeid(*stmt) == typeid(BlockStmt)) {
-        auto block_stmt = (const BlockStmt*) stmt;
-        os << "Begin" << endl;
-        gen(block_stmt->block.get(), os);
-        os << "End;" << endl;
-    } else if (typeid(*stmt) == typeid(WhileStmt)) {
-        auto while_stmt = (const WhileStmt*) stmt;
-        os << "While (";
-        gen(while_stmt->cond_exp.get(), os);
-        os << ") {" << endl;
-        gen(while_stmt->block.get(), os);
-        os << "}" << endl;
-    } else if (typeid(*stmt) == typeid(AssignStmt)) {
-        auto assign_stmt = (const AssignStmt*) stmt;
-        gen(assign_stmt->var.get(), os);
-        os << " := ";
-        gen(assign_stmt->rvalue.get(), os);
-        os << ";" << endl;
-    } else if (typeid(*stmt) == typeid(ReturnStmt)) {
-        auto return_stmt = (const ReturnStmt*) stmt;
-        if (return_stmt->exp == nullptr) {
-            os << "Exit;" << endl;
-        } else {
-            os << "FUNC_NAME := ";
-            gen(return_stmt->exp.get(), os);
-            os << ";" << endl << "Exit;" << endl;
-        }
-    } else if (typeid(*stmt) == typeid(FuncCallStmt)) {
-        auto func_call_stmt = (const FuncCallStmt*) stmt;
-        gen(func_call_stmt->exp.get(), os);
+void PascalCodeGen::gen(const SubExp* exp, ostream& os) {
+    genBinaryExp<SubExp>(exp, "-", os);
+}
+
+void PascalCodeGen::gen(const MultExp* exp, ostream& os) {
+    genBinaryExp<MultExp>(exp, "*", os);
+}
+
+void PascalCodeGen::gen(const DivExp* exp, ostream& os) {
+    genBinaryExp<DivExp>(exp, "/", os);
+}
+
+void PascalCodeGen::gen(const EqExp* exp, ostream& os) {
+    genBinaryExp<EqExp>(exp, "=", os);
+}
+
+void PascalCodeGen::gen(const GreaterEqExp* exp, ostream& os) {
+    genBinaryExp<GreaterEqExp>(exp, ">=", os);
+}
+
+void PascalCodeGen::gen(const LowerEqExp* exp, ostream& os) {
+    genBinaryExp<LowerEqExp>(exp, "<=", os);
+}
+
+void PascalCodeGen::gen(const LowerExp* exp, ostream& os) {
+    genBinaryExp<LowerExp>(exp, "<", os);
+}
+
+void PascalCodeGen::gen(const GreaterExp* exp, ostream& os) {
+    genBinaryExp<GreaterExp>(exp, ">", os);
+}
+
+void PascalCodeGen::gen(const AndExp* exp, ostream& os) {
+    genBinaryExp<AndExp>(exp, "<=", os);
+}
+
+void PascalCodeGen::gen(const OrExp* exp, ostream& os) {
+    genBinaryExp<OrExp>(exp, "<=", os);
+}
+
+void PascalCodeGen::gen(const Var* var, std::ostream& os) {
+    var->ident_exp->generateCode(this, os);
+    for (const auto& sub : var->arr_subscripts.items) {
+        os << "[";
+        sub->generateCode(this, os);
+        os << "]";
     }
 }
 
+void PascalCodeGen::gen(const IdentExp* exp, std::ostream& os) {
+    os << *exp->id;
+}
+
+void PascalCodeGen::gen(const IntLiteral* exp, std::ostream& os) {
+    os << exp->val;
+}
+
+void PascalCodeGen::gen(const FloatLiteral* exp, std::ostream& os) {
+    os << exp->val;
+}
+
+void PascalCodeGen::gen(const StringLiteral* exp, std::ostream& os) {
+    os << *exp->val;
+}
+
+void PascalCodeGen::gen(const FuncCallExp* exp, std::ostream& os) {
+    exp->func_ident->generateCode(this, os);
+
+    os << "(";
+    auto arg_exp_it = exp->arg_exps->items.begin();
+
+    if (arg_exp_it != exp->arg_exps->items.end()) {
+        (*arg_exp_it)->generateCode(this, os);
+        for(arg_exp_it++; arg_exp_it != exp->arg_exps->items.end(); arg_exp_it++) {
+            os << ", ";
+            (*arg_exp_it)->generateCode(this, os);
+        }
+    }
+
+    os << ")";
+}
+
+void PascalCodeGen::gen(const NewExp* exp, std::ostream& os) {
+}
+
+void PascalCodeGen::gen(const MinusExp* minus_exp, ostream& os) {
+    os << "(-";
+    minus_exp->exp->generateCode(this, os);
+    os << ")";
+}
+
+void PascalCodeGen::gen(const NotExp* not_exp, ostream& os) {
+    os << "(Not ";
+    not_exp->exp->generateCode(this, os);
+    os << ")";
+}
+
+void PascalCodeGen::gen(const IfStmt* if_stmt, ostream& os) {
+    os << "If ";
+    if_stmt->cond_exp->generateCode(this, os);
+    os << " Then" << endl;
+    if (if_stmt->else_cmd == nullptr) {
+        os << "Begin" << endl;
+        if_stmt->then_cmd->generateCode(this, os);
+        os << "End;" << endl;
+    } else {
+        os << "Begin" << endl;
+        if_stmt->then_cmd->generateCode(this, os);
+        os << "End" << endl;
+        os << "else" << endl;
+        os << "Begin" << endl;
+        if_stmt->else_cmd->generateCode(this, os);
+        os << "End;" << endl;
+    }
+}
+
+void PascalCodeGen::gen(const BlockStmt* block_stmt, ostream& os) {
+    os << "Begin" << endl;
+    block_stmt->block->generateCode(this, os);
+    os << "End;" << endl;
+}
+
+void PascalCodeGen::gen(const WhileStmt* while_stmt, ostream& os) {
+    os << "While (";
+    while_stmt->cond_exp->generateCode(this, os);
+    os << ") {" << endl;
+    while_stmt->block->generateCode(this, os);
+    os << "}" << endl;
+}
+
+void PascalCodeGen::gen(const AssignStmt* assign_stmt, ostream& os) {
+    assign_stmt->var->generateCode(this, os);
+    os << " := ";
+    assign_stmt->rvalue->generateCode(this, os);
+    os << ";" << endl;
+}
+
+void PascalCodeGen::gen(const ReturnStmt* return_stmt, ostream& os) {
+    if (return_stmt->exp == nullptr) {
+        os << "Exit;" << endl;
+    } else {
+        os << "FUNC_NAME := ";
+        return_stmt->exp->generateCode(this, os);
+        os << ";" << endl << "Exit;" << endl;
+    }
+}
+
+void PascalCodeGen::gen(const FuncCallStmt* func_call_stmt, ostream& os) {
+    func_call_stmt->exp->generateCode(this, os);
+}
+
 void PascalCodeGen::gen(const Command* com, ostream& os) {
-    gen(com->stmt.get(), os);
+    com->stmt->generateCode(this, os);
 }
 
 void PascalCodeGen::gen(const Block* blk, ostream& os) {
     for (auto& com : blk->commands->items) {
-        gen(com.get(), os);
+        com->generateCode(this, os);
     }
 }
 
@@ -111,36 +210,28 @@ void PascalCodeGen::gen(const Arg* arg, ostream& os) {
     os << *arg->id << ": " << toPascalTypeStr(*arg->type);
 }
 
-void PascalCodeGen::gen(const ArgsVec* args, ostream& os) {
-    os << "(";
-    auto arg_it = args->items.begin();
-    gen((*arg_it).get(), os);
-    for (arg_it++; arg_it != args->items.end(); arg_it++) {
-        os << ", ";
-        gen((*arg_it).get(), os);
-    }
-    os << ")";
-}
-
 void PascalCodeGen::gen(const FuncDecl* func_decl, ostream& os) {
     bool is_procedure = func_decl->ret_type->isVoid();
     if (is_procedure) {
-        os << "Procedure ";
-        gen(func_decl->args.get(), os);
-        os << endl;
+        os << "Procedure " << *func_decl->id << ";" << endl;
     } else {
-        os << "Function ";
-        gen(func_decl->args.get(), os);
-        os << ": " << toPascalTypeStr(func_decl->ret_type.get()) << ";" << endl;
+        os << "Function " << *func_decl->id << "(";
+        auto arg_it = func_decl->args->items.begin();
+        (*arg_it)->generateCode(this, os);
+        for (arg_it++; arg_it != func_decl->args->items.end(); arg_it++) {
+            os << ", ";
+            (*arg_it)->generateCode(this, os);
+        }
+        os << "): " << toPascalTypeStr(func_decl->ret_type.get()) << ";" << endl;
     }
     os << "Begin" << endl;
-    gen(func_decl->block.get(), os);
+    func_decl->block->generateCode(this, os);
     os << "End;" << endl;
 }
 
 void PascalCodeGen::gen(const VarDeclVec* var_decls, ostream& os) {
     for (const auto& var_decl : var_decls->items) {
-        gen(var_decl.get(), os);
+        var_decl->generateCode(this, os);
         os << endl;
     }
 }
