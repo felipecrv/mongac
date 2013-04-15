@@ -138,7 +138,7 @@ comando : stmt { $$ = new Command($<stmt>1); $$->setLineno(@1.first_line); }
 
 stmt : IF APAR exp FPAR comando { $$ = new IfStmt($<exp>3, $<command>5); $$->setLineno(@1.first_line); }
      | IF APAR exp FPAR comando ELSE comando { $$ = new IfStmt($<exp>3, $<command>5, $<command>7); $$->setLineno(@1.first_line); }
-     | WHILE APAR exp FPAR comando { $$ = new WhileStmt($<exp>3, $<block>5); $$->setLineno(@1.first_line); }
+     | WHILE APAR exp FPAR comando { $$ = new WhileStmt($<exp>3, $<command>5); $$->setLineno(@1.first_line); }
      | var ATRIB exp PTVIRG { $$ = new AssignStmt((Var*) $<exp>1, $<exp>3); $$->setLineno(@2.first_line); }
      | RETURN PTVIRG { $$ = new ReturnStmt(); $$->setLineno(@1.first_line); }
      | RETURN exp PTVIRG { $$ = new ReturnStmt($<exp>2); $$->setLineno(@1.first_line); }

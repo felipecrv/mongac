@@ -789,12 +789,12 @@ class WhileStmt : public Stmt {
 
     private:
         unique_ptr<Exp> cond_exp;
-        unique_ptr<Block> block;
+        unique_ptr<Command> block;
 
     public:
-        WhileStmt(Exp* cond_exp, Block* block)
+        WhileStmt(Exp* cond_exp, Command* block)
             : cond_exp(unique_ptr<Exp>(cond_exp)),
-            block(unique_ptr<Block>(block)) {
+            block(unique_ptr<Command>(block)) {
         }
 
         shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
