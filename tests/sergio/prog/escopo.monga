@@ -1,0 +1,22 @@
+char [] s;
+
+void f() {
+	s = new char[10];
+	s = "global";
+}
+
+void 
+main () {
+	f();
+	print("s = ", s);
+
+	if (2 > 1) {
+		char [] s;
+		s = new char[10];
+		s = "local";
+		print("s = ", s);	
+	} else {
+		print("s = ", s);
+	}
+}
+

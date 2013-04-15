@@ -1,0 +1,37 @@
+int f () {
+	char [] s;
+	char [] d;
+
+	s = new char[100];
+
+	s = "boi";
+	print("f: s = ", s);
+
+	d = "casa";
+	print("f: d = ", d);
+
+	d = "bola";
+	print("f: d = ", d);
+
+	d = s;
+	print("f : d = ", d);
+
+	d = "a\nb";
+	print("f: d = ", d);
+
+	return 0;
+}
+
+void 
+main () {
+	char [] s;
+	int h;
+
+	s = "bola";
+	h = 5;
+
+	print("h = ", h);
+	print("s = ", s);
+
+	f();
+}

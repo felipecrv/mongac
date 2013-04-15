@@ -1,0 +1,16 @@
+void
+main () {
+	int c, d;
+	float a;
+
+	d = 77;
+	print("d = ", d);
+
+	c = 34;
+	print("c = ", c);
+
+	a = 4.3;
+	print("a = ", a);
+
+	print("fim");
+}

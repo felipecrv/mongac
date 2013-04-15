@@ -1,0 +1,33 @@
+void
+main () {
+	int a, b, c;
+	int d;
+
+	a = 2 * 3 / 4;
+	print("a = ", a);
+
+	b = a + 777 / a;
+	print("b = ", b);
+
+	c = -b;
+	print("c = ", c);
+
+	if (a > b) {
+		if (a >= b + c) {
+			if (b * c < a) {
+				a = 1;
+				print("a = ", a);
+			}
+			else {
+				a = 2;
+				print("a = ", a);
+			}
+		}
+	}
+		
+	if (a && b) {
+		c = a && d + a * 6 + c || !d;
+		print("c = ", c);
+	}
+}
+

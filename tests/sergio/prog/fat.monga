@@ -1,0 +1,19 @@
+int
+fat (int d) {
+	if (d == 0)
+		return 1;
+	else
+		return d * fat(d - 1);
+}
+
+void 
+main () {
+	int h;
+
+	h = fat(10);
+
+	print("fat10 ", h);
+
+	print("fat5", fat(5));
+}
+
