@@ -40,8 +40,8 @@ bool Type::isOrdType() const {
         ((type_tok == INT || type_tok == FLOAT) && this->arr_dim == 0);
 }
 
-// we use INT as type_tok for booleans
-BoolType::BoolType() : Type(INT) {}
+// we use IF as type_tok for explicit booleans
+BoolType::BoolType() : Type(IF) {}
 BoolType::BoolType(BoolType* t) : Type(t) {}
 FuncType::FuncType(TypeVec* arg_types, Type* ret_type)
         : Type(RETURN) {
@@ -59,7 +59,8 @@ bool Type::canSubstituteBy(Type replacement) const {
     if ((*this == replacement) ||
             (this->isIntegral() && replacement.isIntegral()) ||
             (this->isReal() && replacement.isIntegral()) ||
-            (this->isReal() && replacement.isReal())) {
+            (this->isReal() && replacement.isReal()) ||
+            (replacement.type_tok == IF && this->isBool())) {
         return true;
     }
     // different array dimensions... and all other cases
@@ -178,7 +179,7 @@ bool FuncType::operator==(const Type& t) const {
     return false;
 }
 
-shared_ptr<Type> Env::findSymbolType(const string& ident)
+shared_ptr<Type> Env::findSymbolType(const string& ident, int& scope_id)
         throw(DirtyScopeExn, SymbolNotFoundExn) {
     for (int i = ((int) scopes.size()) - 1; i >= 0; i--) {
         // we can't rely on this scope if a symbol is missing
@@ -190,6 +191,7 @@ shared_ptr<Type> Env::findSymbolType(const string& ident)
         if (sym_pair != scopes[i].sym_table.end()) {
             // LOG("ENV: found '" << ident << ": " <<
             //     sym_pair->second->typeExp() << "' in scope " << i);
+            scope_id = i;
             return sym_pair->second;
         }
     }
@@ -199,7 +201,13 @@ shared_ptr<Type> Env::findSymbolType(const string& ident)
     }
 }
 
-void Env::addSymbol(const std::string& ident, shared_ptr<Type> type)
+shared_ptr<Type> Env::findSymbolType(const string& ident)
+        throw(DirtyScopeExn, SymbolNotFoundExn) {
+    int scope_id;
+    return findSymbolType(ident, scope_id);
+}
+
+int Env::addSymbol(const std::string& ident, shared_ptr<Type> type)
         throw(SymbolRedeclExn) {
     LOG("adding symbol '" << ident << ": " << type->typeExp() <<
             "' to current scope (" << (scopes.size() - 1) << ")");
@@ -211,7 +219,7 @@ void Env::addSymbol(const std::string& ident, shared_ptr<Type> type)
             FuncType* func_type = (FuncType*) type.get();
             if (*func_type_from_sym != *func_type) {
                 func_type_from_sym->variations.push_back(func_type->variations[0]);
-                return;
+                return scopes.size() - 1;
             }
         }
         cur_scope.missing_symbol = true;
@@ -219,19 +227,20 @@ void Env::addSymbol(const std::string& ident, shared_ptr<Type> type)
         throw e;
     }
     cur_scope.sym_table[ident] = type;
+    return scopes.size() - 1;
 }
 
-shared_ptr<Type> IntLiteral::typeCheck(Env* env, shared_ptr<Type>) {
+shared_ptr<Type> IntLiteral::doTypeCheck(Env* env, shared_ptr<Type>) {
     LOG("typechecking int literal");
     return shared_ptr<Type>(new Type(INT));
 }
 
-shared_ptr<Type> FloatLiteral::typeCheck(Env* env, shared_ptr<Type>) {
+shared_ptr<Type> FloatLiteral::doTypeCheck(Env* env, shared_ptr<Type>) {
     LOG("typechecking float literal");
     return shared_ptr<Type>(new Type(FLOAT));
 }
 
-shared_ptr<Type> StringLiteral::typeCheck(Env* env, shared_ptr<Type>) {
+shared_ptr<Type> StringLiteral::doTypeCheck(Env* env, shared_ptr<Type>) {
     LOG("typechecking string literal");
     return shared_ptr<Type>(new Type(CHAR, 1));
 }
@@ -263,7 +272,7 @@ shared_ptr<Type> VarDecl::typeCheck(Env* env, shared_ptr<Type> et) {
         for (auto ident_it = this->idents->items.begin();
                 ident_it != this->idents->items.end();
                 ident_it++) {
-            env->addSymbol(**ident_it, symbol_type);
+            this->scope_id = env->addSymbol(**ident_it, symbol_type);
         }
     } catch (SymbolRedeclExn& e) {
         // TODO: would be cool to have each name's lineno
@@ -327,11 +336,12 @@ shared_ptr<Type> FuncDecl::typeCheck(Env* env, shared_ptr<Type> et) {
     return func_type;
 }
 
-shared_ptr<Type> FuncCallExp::typeCheck(Env* env, shared_ptr<Type> et) {
+shared_ptr<Type> FuncCallExp::doTypeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking function call expression");
     shared_ptr<Type> symbol_type;
     try {
         symbol_type = env->findSymbolType(func_ident->getIdentStr());
+        this->cached_func_type = symbol_type;
     } catch (SymbolNotFoundExn& e) {
         e.lineno = this->lineno;
         e.emitError();
@@ -353,50 +363,56 @@ shared_ptr<Type> FuncCallExp::typeCheck(Env* env, shared_ptr<Type> et) {
             exp_types.push_back(exp_type);
         }
 
-        // match against all possible variations
-        for (auto it = func_type->variations.begin();
-                it != func_type->variations.end();
-                it++) {
-            auto arg_types = it->first;
-            ret_type = it->second;
+        if (func_ident->getIdentStr() == "print") {
+            // for the polymorphic print we can acept anything
+            matched = 1;
+        } else {
+            // match against all possible variations
+            for (auto it = func_type->variations.begin();
+                    it != func_type->variations.end();
+                    it++) {
+                auto arg_types = it->first;
+                ret_type = it->second;
 
-            // checks arity for this variation
-            if (arg_types->size() != arg_exps->size()) {
-                // if there's a single variation we fail with a more specific
-                // message
-                if (func_type->variations.size() == 1) {
-                    FuncCallArityMismatchExn e(arg_types->size(), this);
-                    e.emitError();
-                    throw e;
-                }
-                continue;
-            }
-
-            unsigned int i = 1;
-            auto arg_type_it = arg_types->items.begin();
-            auto exp_it = arg_exps->items.begin();
-            auto exp_type_it = exp_types.begin();
-            for (; arg_type_it != arg_types->items.end();
-                    i++, arg_type_it++, exp_it++, exp_type_it++) {
-                if (!(*arg_type_it)->canSubstituteBy(**exp_type_it)) {
+                // checks arity for this variation
+                if (arg_types->size() != arg_exps->size()) {
                     // if there's a single variation we fail with a more specific
                     // message
                     if (func_type->variations.size() == 1) {
-                        FuncCallTypeMismatchExn e(
-                                func_ident->getIdentStr(),
-                                new Type((*arg_type_it).get()),
-                                new Type(**exp_type_it),
-                                i,
-                                (*exp_it)->lineno);
+                        FuncCallArityMismatchExn e(arg_types->size(), this);
                         e.emitError();
                         throw e;
                     }
-                    goto next_variation;
+                    continue;
                 }
-            }
-            ++matched;
+
+
+                unsigned int i = 1;
+                auto arg_type_it = arg_types->items.begin();
+                auto exp_it = arg_exps->items.begin();
+                auto exp_type_it = exp_types.begin();
+                for (; arg_type_it != arg_types->items.end();
+                        i++, arg_type_it++, exp_it++, exp_type_it++) {
+                    if (!(*arg_type_it)->canSubstituteBy(**exp_type_it)) {
+                        // if there's a single variation we fail with a more specific
+                        // message
+                        if (func_type->variations.size() == 1) {
+                            FuncCallTypeMismatchExn e(
+                                    func_ident->getIdentStr(),
+                                    new Type((*arg_type_it).get()),
+                                    new Type(**exp_type_it),
+                                    i,
+                                    (*exp_it)->lineno);
+                            e.emitError();
+                            throw e;
+                        }
+                        goto next_variation;
+                    }
+                }
+                ++matched;
 next_variation:
-            continue;
+                continue;
+            }
         }
 
         if (!matched) {
@@ -432,7 +448,7 @@ next_variation:
     }
 }
 
-shared_ptr<Type> NumericalBinaryExp::typeCheck(Env* env, shared_ptr<Type> et) {
+shared_ptr<Type> NumericalBinaryExp::doTypeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking numerical binary expression (+, -, *, /)");
     auto t1 = exp1->typeCheck(env, et);
     auto t2 = exp2->typeCheck(env, et);
@@ -444,7 +460,7 @@ shared_ptr<Type> NumericalBinaryExp::typeCheck(Env* env, shared_ptr<Type> et) {
     return typeCheck(t1, t2, env);
 }
 
-shared_ptr<Type> NewExp::typeCheck(Env* env, shared_ptr<Type> et) {
+shared_ptr<Type> NewExp::doTypeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking new expression");
 
     if (type->isVoid()) {
@@ -467,7 +483,7 @@ shared_ptr<Type> NewExp::typeCheck(Env* env, shared_ptr<Type> et) {
     return shared_ptr<Type>(t);
 }
 
-shared_ptr<Type> MinusExp::typeCheck(Env* env, shared_ptr<Type> et) {
+shared_ptr<Type> MinusExp::doTypeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking minus expression");
     auto t = exp->typeCheck(env, et);
     if (!t->isNumerical()) {
@@ -478,7 +494,7 @@ shared_ptr<Type> MinusExp::typeCheck(Env* env, shared_ptr<Type> et) {
     return t;
 }
 
-shared_ptr<Type> NotExp::typeCheck(Env* env, shared_ptr<Type> et) {
+shared_ptr<Type> NotExp::doTypeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking not expression");
     auto t = exp->typeCheck(env, et);
     if (!t->isBool()) {
@@ -486,10 +502,11 @@ shared_ptr<Type> NotExp::typeCheck(Env* env, shared_ptr<Type> et) {
         e.emitError();
         throw e;
     }
-    return t;
+    BoolType bool_type;
+    return make_shared<Type>(bool_type);
 }
 
-shared_ptr<Type> BoolBinaryExp::typeCheck(Env* env, shared_ptr<Type> et) {
+shared_ptr<Type> BoolBinaryExp::doTypeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking bool binary expression (&&, ||)");
     auto t1 = exp1->typeCheck(env, et);
     auto t2 = exp2->typeCheck(env, et);
@@ -501,7 +518,7 @@ shared_ptr<Type> BoolBinaryExp::typeCheck(Env* env, shared_ptr<Type> et) {
     return shared_ptr<Type>(new BoolType());
 }
 
-shared_ptr<Type> Var::typeCheck(Env* env, shared_ptr<Type> et) {
+shared_ptr<Type> Var::doTypeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking var expression");
     // type of the identifier
     shared_ptr<Type> ident_type;
@@ -621,6 +638,13 @@ shared_ptr<Type> Prog::typeCheck(Env* env, shared_ptr<Type> et) {
     LOG("typechecking program");
     {
         EnvScopeGuard g(env);
+
+        // Create the print functions
+        auto v1_arg_types = new TypeVec();
+        v1_arg_types->add(new Type(INT));
+        FuncType print_func_type(v1_arg_types, new Type(VOID));
+        env->addSymbol("print", make_shared<FuncType>(print_func_type));
+
         for (auto it = items.begin(); it != items.end(); it++) {
             (*it)->typeCheck(env, et);
         }

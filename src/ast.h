@@ -124,7 +124,9 @@ class AstNode {
         }
         void setLineno(int ln) { lineno = ln; }
 
-        virtual void generateCode(CodeGen* code_gen, ostream& os) { /* placeholder */ }
+        virtual void generateCode(CodeGen* code_gen, ostream& os) const {
+            /* placeholder */
+        }
 };
 
 string toStr(const AstNode& node);
@@ -186,6 +188,7 @@ class BoolType : public Type {
 class FuncType : public Type {
     friend class FuncCallExp;
     friend class Env;
+    friend class PascalCodeGen;
     typedef pair<shared_ptr<TypeVec>, shared_ptr<Type> > FuncTypeVariation;
 
     private:
@@ -271,7 +274,9 @@ class Env {
     public:
         shared_ptr<Type> findSymbolType(const string& ident)
             throw(DirtyScopeExn, SymbolNotFoundExn);
-        void addSymbol(const std::string& ident, shared_ptr<Type> type)
+        shared_ptr<Type> findSymbolType(const string& ident, int& scope_id)
+            throw(DirtyScopeExn, SymbolNotFoundExn);
+        int addSymbol(const std::string& ident, shared_ptr<Type> type)
             throw(SymbolRedeclExn);
 };
 
@@ -299,10 +304,23 @@ class Arg : public AstNode {
 
         string toStr() const { return "(arg " + type->toStr() + " " + *id + ")"; }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class Exp : public AstNode {
+    friend class PascalCodeGen;
+
+    private:
+        shared_ptr<Type> cached_type;
+
+    public:
+        virtual shared_ptr<Type> doTypeCheck(Env*, shared_ptr<Type>) = 0;
+
+        shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type> t) {
+            return cached_type = doTypeCheck(env, t);
+        }
 };
 
 class IdentExp : public Exp {
@@ -310,16 +328,19 @@ class IdentExp : public Exp {
 
     private:
         unique_ptr<string> id;
+        int scope_id;
 
     public:
         IdentExp(string* id) : id(unique_ptr<string>(id)) {}
         string getIdentStr() const { return *id; }
         string toStr() const { return *id; }
-        shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type>) {
-            return env->findSymbolType(*id);
+        shared_ptr<Type> doTypeCheck(Env* env, shared_ptr<Type>) {
+            return env->findSymbolType(*id, this->scope_id);
         }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class IntLiteral : public Exp {
@@ -336,9 +357,11 @@ class IntLiteral : public Exp {
             return s;
         }
 
-        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
+        shared_ptr<Type> doTypeCheck(Env*, shared_ptr<Type>);
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class FloatLiteral : public Exp {
@@ -350,8 +373,10 @@ class FloatLiteral : public Exp {
     public:
         FloatLiteral(string* s) { val = std::atof(s->c_str()); }
         string toStr() const { return std::to_string(val); }
-        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        shared_ptr<Type> doTypeCheck(Env*, shared_ptr<Type>);
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class StringLiteral : public Exp {
@@ -363,9 +388,11 @@ class StringLiteral : public Exp {
     public:
         StringLiteral(string* s) : val(unique_ptr<string>(s)) {}
         string toStr() const { return *val; }
-        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
+        shared_ptr<Type> doTypeCheck(Env*, shared_ptr<Type>);
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class FuncCallExp : public Exp {
@@ -376,6 +403,7 @@ class FuncCallExp : public Exp {
     private:
         unique_ptr<IdentExp> func_ident;
         unique_ptr<ExpVec> arg_exps;
+        shared_ptr<Type> cached_func_type;
 
     public:
         FuncCallExp(IdentExp* func_ident, ExpVec* arg_exps)
@@ -389,9 +417,11 @@ class FuncCallExp : public Exp {
             return "(" + func_ident->toStr() + " " + arg_exps->toStr() + ")";
         }
 
-        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
+        shared_ptr<Type> doTypeCheck(Env*, shared_ptr<Type>);
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class BinaryExp : public Exp {
@@ -429,7 +459,7 @@ class NumericalBinaryExp : public BinaryExp {
 
     public:
         NumericalBinaryExp(Exp* exp1, Exp* exp2) : BinaryExp(exp1, exp2) {}
-        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
+        shared_ptr<Type> doTypeCheck(Env*, shared_ptr<Type>);
 };
 
 class UnaryExp : public Exp {
@@ -449,13 +479,15 @@ class NewExp : public Exp {
         NewExp(Type* type, Exp* exp)
             : type(unique_ptr<Type>(type)), exp(unique_ptr<Exp>(exp)) {}
 
-        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
+        shared_ptr<Type> doTypeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {
             return "(new " + type->toStr() + " " + exp->toStr() + ")";
         }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class MinusExp : public UnaryExp {
@@ -463,37 +495,47 @@ class MinusExp : public UnaryExp {
 
     public:
         MinusExp(Exp* exp) : UnaryExp(exp) {}
-        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
+        shared_ptr<Type> doTypeCheck(Env*, shared_ptr<Type>);
         string toStr() const { return "-" + exp->toStr(); }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class SumExp : public NumericalBinaryExp {
     public:
         SumExp(Exp* exp1, Exp* exp2) : NumericalBinaryExp(exp1, exp2) {}
         string operatorStr() const { return "+"; }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class SubExp : public NumericalBinaryExp {
     public:
         SubExp(Exp* exp1, Exp* exp2) : NumericalBinaryExp(exp1, exp2) {}
         string operatorStr() const { return "-"; }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class MultExp : public NumericalBinaryExp {
     public:
         MultExp(Exp* exp1, Exp* exp2) : NumericalBinaryExp(exp1, exp2) {}
         string operatorStr() const { return "*"; }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class DivExp : public NumericalBinaryExp {
     public:
         DivExp(Exp* exp1, Exp* exp2) : NumericalBinaryExp(exp1, exp2) {}
         string operatorStr() const { return "/"; }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class ComparisonBinaryExp : public BinaryExp {
@@ -521,7 +563,7 @@ class ComparisonBinaryExp : public BinaryExp {
     public:
         ComparisonBinaryExp(Exp* exp1, Exp* exp2) : BinaryExp(exp1, exp2) {}
 
-        shared_ptr<Type> typeCheck(Env* env, shared_ptr<Type>) {
+        shared_ptr<Type> doTypeCheck(Env* env, shared_ptr<Type>) {
             LOG("typechecking binary comparison expression (<, <=, >, >=, ==)");
             auto t1 = exp1->typeCheck(env, the_void_type());
             auto t2 = exp2->typeCheck(env, the_void_type());
@@ -539,7 +581,9 @@ class EqExp : public ComparisonBinaryExp {
     public:
         EqExp(Exp* exp1, Exp* exp2) : ComparisonBinaryExp(exp1, exp2) {}
         string operatorStr() const { return "=="; }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class GreaterEqExp : public ComparisonBinaryExp {
@@ -553,7 +597,9 @@ class GreaterEqExp : public ComparisonBinaryExp {
     public:
         GreaterEqExp(Exp* exp1, Exp* exp2) : ComparisonBinaryExp(exp1, exp2) {}
         string operatorStr() const { return ">="; }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class LowerExp : public ComparisonBinaryExp {
@@ -566,7 +612,9 @@ class LowerExp : public ComparisonBinaryExp {
     public:
         LowerExp(Exp* exp1, Exp* exp2) : ComparisonBinaryExp(exp1, exp2) {}
         string operatorStr() const { return "<"; }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class GreaterExp : public ComparisonBinaryExp {
@@ -579,7 +627,9 @@ class GreaterExp : public ComparisonBinaryExp {
     public:
         GreaterExp(Exp* exp1, Exp* exp2) : ComparisonBinaryExp(exp1, exp2) {}
         string operatorStr() const { return ">"; }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class LowerEqExp : public ComparisonBinaryExp {
@@ -593,7 +643,9 @@ class LowerEqExp : public ComparisonBinaryExp {
     public:
         LowerEqExp(Exp* exp1, Exp* exp2) : ComparisonBinaryExp(exp1, exp2) {}
         string operatorStr() const { return "<="; }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class NotExp : public UnaryExp {
@@ -601,15 +653,17 @@ class NotExp : public UnaryExp {
 
     public:
         NotExp(Exp* exp) : UnaryExp(exp) {}
-        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
+        shared_ptr<Type> doTypeCheck(Env*, shared_ptr<Type>);
         string toStr() const { return "!" + exp->toStr(); }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class BoolBinaryExp : public BinaryExp {
     public:
         BoolBinaryExp(Exp* exp1, Exp* exp2) : BinaryExp(exp1, exp2) {}
-        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
+        shared_ptr<Type> doTypeCheck(Env*, shared_ptr<Type>);
 };
 
 class AndExp : public BoolBinaryExp {
@@ -618,7 +672,9 @@ class AndExp : public BoolBinaryExp {
     public:
         AndExp(Exp* exp1, Exp* exp2) : BoolBinaryExp(exp1, exp2) {}
         string operatorStr() const { return "&&"; }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class OrExp : public BoolBinaryExp {
@@ -627,7 +683,9 @@ class OrExp : public BoolBinaryExp {
     public:
         OrExp(Exp* exp1, Exp* exp2) : BoolBinaryExp(exp1, exp2) {}
         string operatorStr() const { return "||"; }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class Var : public Exp {
@@ -646,7 +704,7 @@ class Var : public Exp {
             return this;
         }
 
-        shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
+        shared_ptr<Type> doTypeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {
             if (arr_subscripts.size()) {
@@ -655,7 +713,9 @@ class Var : public Exp {
             return ident_exp->toStr();
         }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class Decl : public AstNode {
@@ -668,6 +728,7 @@ class VarDecl : public Decl {
     private:
         unique_ptr<Type> type;
         unique_ptr<IdVec> idents;
+        int scope_id;
 
     public:
         VarDecl(Type* type, IdVec* idents)
@@ -683,7 +744,9 @@ class VarDecl : public Decl {
             return s + ")";
         }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class VarDeclVec : public Vec<VarDecl> {
@@ -695,7 +758,9 @@ class VarDeclVec : public Vec<VarDecl> {
             return the_void_type();
         }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class Block : public AstNode {
@@ -716,7 +781,9 @@ class Block : public AstNode {
             return "(" + vars->toStr() + "\n" + commands->toStr() + ")";
         }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class Stmt : public AstNode {
@@ -735,7 +802,9 @@ class BlockStmt : public Stmt {
         }
         string toStr() const { return block->toStr(); }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class Command : public AstNode {
@@ -753,7 +822,9 @@ class Command : public AstNode {
         }
         string toStr() const { return stmt->toStr(); }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class IfStmt : public Stmt {
@@ -781,7 +852,9 @@ class IfStmt : public Stmt {
             return s + ")";
         }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class WhileStmt : public Stmt {
@@ -803,7 +876,9 @@ class WhileStmt : public Stmt {
             return "(while " + cond_exp->toStr() + "\n" + block->toStr() + ")";
         }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class AssignStmt : public Stmt {
@@ -825,7 +900,9 @@ class AssignStmt : public Stmt {
             return "(set " + var->toStr() + " " + rvalue->toStr() + ")";
         }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class ReturnStmt : public Stmt {
@@ -846,7 +923,9 @@ class ReturnStmt : public Stmt {
             return "(ret " + exp->toStr() + ")";
         }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class FuncCallStmt : public Stmt {
@@ -860,7 +939,9 @@ class FuncCallStmt : public Stmt {
             : exp(unique_ptr<FuncCallExp>(exp)) {}
         shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
         string toStr() const { return exp->toStr(); }
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class FuncDecl : public Decl {
@@ -884,13 +965,17 @@ class FuncDecl : public Decl {
                 + "\n" + monga::toStr(*block) + ")";
         }
 
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 class Prog : public Vec<Decl> {
     public:
         shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
-        void generateCode(CodeGen* code_gen, ostream& os) { code_gen->gen(this, os); }
+        void generateCode(CodeGen* code_gen, ostream& os) const {
+            code_gen->gen(this, os);
+        }
 };
 
 }; // namespace monga

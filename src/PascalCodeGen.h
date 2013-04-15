@@ -17,9 +17,59 @@ private:
     void genBinaryExp(const BinaryExpClass* exp, std::string op, std::ostream& os) {
         os << "(";
         exp->exp1->generateCode(this, os);
-        os << op;
+        os << " " << op << " ";
         exp->exp2->generateCode(this, os);
         os << ")";
+    }
+
+    template <class BoolBinaryExpClass>
+    void genBoolBinaryExp(
+            const BoolBinaryExpClass* exp,
+            std::string op,
+            std::ostream& os) {
+        os << "(";
+        genAsBool(exp->exp1.get(), os);
+        os << " " << op << " ";
+        genAsBool(exp->exp2.get(), os);
+        os << ")";
+    }
+
+    void genAsBool(const monga::Exp* exp, std::ostream& os);
+
+    void genPassedAsArgExp(
+            const monga::Exp* exp,
+            const monga::Type* formal_arg_type,
+            std::ostream& os);
+
+    void genBlockVariableDeclarations(const BlockStmt* block_stmt, std::ostream& os) {
+        genBlockVariableDeclarations(block_stmt->block.get(), os);
+    }
+
+    void genBlockVariableDeclarations(const Stmt* stmt, std::ostream& os) {
+        if (typeid(*stmt) == typeid(IfStmt)) {
+            auto if_stmt = (const IfStmt*) stmt;
+            genBlockVariableDeclarations(if_stmt->then_cmd.get(), os);
+            if (if_stmt->else_cmd != nullptr) {
+                genBlockVariableDeclarations(if_stmt->else_cmd.get(), os);
+            }
+        } else if (typeid(*stmt) == typeid(BlockStmt)) {
+            auto blk_stmt = (const BlockStmt*) stmt;
+            genBlockVariableDeclarations(blk_stmt, os);
+        } else if (typeid(*stmt) == typeid(WhileStmt)) {
+            auto while_stmt = (const WhileStmt*) stmt;
+            genBlockVariableDeclarations(while_stmt->block.get(), os);
+        }
+    }
+
+    void genBlockVariableDeclarations(const Command* com, std::ostream& os) {
+        genBlockVariableDeclarations(com->stmt.get(), os);
+    }
+
+    void genBlockVariableDeclarations(const Block* blk, std::ostream& os) {
+        blk->vars->generateCode(this, os);
+        for (unsigned int i = 0; i < blk->commands->items.size(); i++) {
+            genBlockVariableDeclarations(blk->commands->items[i].get(), os);
+        }
     }
 
 public:
