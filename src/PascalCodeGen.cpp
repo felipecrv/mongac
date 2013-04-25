@@ -155,11 +155,11 @@ void PascalCodeGen::gen(const GreaterExp* exp, ostream& os) {
 }
 
 void PascalCodeGen::gen(const AndExp* exp, ostream& os) {
-    genBoolBinaryExp<AndExp>(exp, "<=", os);
+    genBoolBinaryExp<AndExp>(exp, "And", os);
 }
 
 void PascalCodeGen::gen(const OrExp* exp, ostream& os) {
-    genBoolBinaryExp<OrExp>(exp, "<=", os);
+    genBoolBinaryExp<OrExp>(exp, "Or", os);
 }
 
 void PascalCodeGen::gen(const Var* var, std::ostream& os) {
