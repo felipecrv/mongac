@@ -23,6 +23,7 @@ int main(int argc, char* argv[]) {
 
     // type checks the program
     Env env;
+    semantic_check_success = 1;
     try {
         program->typeCheck(&env, the_void_type());
     } catch (SemanticExn& e) {

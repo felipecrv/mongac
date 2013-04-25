@@ -37,5 +37,6 @@ clean:
 	rm -f parser.h parser.cpp tokens.o tokens.cpp
 
 test: mongac
+	./$<
 
 .PHONY: test run clean
