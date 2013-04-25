@@ -318,7 +318,7 @@ void PascalCodeGen::gen(const FuncDecl* func_decl, ostream& os) {
             os << "_1_";
             (*arg_it)->generateCode(this, os);
             for (arg_it++; arg_it != func_decl->args->items.end(); arg_it++) {
-                os << ", _1_";
+                os << "; _1_";
                 (*arg_it)->generateCode(this, os);
             }
         }
