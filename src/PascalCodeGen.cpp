@@ -37,24 +37,41 @@ string PascalCodeGen::toPascalTypeStr(Type t) const {
     return ts;
 }
 
-void PascalCodeGen::genPassedAsArgExp(
+void PascalCodeGen::genAsType(
         const Exp* exp,
-        const Type* formal_arg_type,
+        const Type* expected_type,
         std::ostream& os) {
-    if (exp->cached_type->type_tok == IF) {
-        switch (formal_arg_type->type_tok) {
-            case INT:
-                os << "(_monga_bool_to_int(";
-                exp->generateCode(this, os);
-                os << "))";
-                return;
-            case FLOAT:
-                os << "(_monga_bool_to_float(";
-                exp->generateCode(this, os);
-                os << "))";
-                return;
-        }
+
+    switch (expected_type->type_tok) {
+        case IF: // IF used to indicate explicit boolean
+            genAsBool(exp, os);
+            return;
+        case CHAR:
+            os << "(Chr(";
+            exp->generateCode(this, os);
+            os << "))";
+            return;
+        case INT:
+            switch (exp->cached_type->type_tok) {
+                case IF:
+                    os << "(_monga_bool_to_int(";
+                    exp->generateCode(this, os);
+                    os << "))";
+                    return;
+            }
+            break;
+        case FLOAT:
+            switch (exp->cached_type->type_tok) {
+                case IF:
+                    os << "(_monga_bool_to_float(";
+                    exp->generateCode(this, os);
+                    os << "))";
+                    return;
+            }
+            break;
     }
+
+    // default: no conversion
     exp->generateCode(this, os);
 }
 
@@ -205,7 +222,7 @@ void PascalCodeGen::gen(const FuncCallExp* exp, std::ostream& os) {
     auto arg_type_it = arg_type_vec_ptr->items.begin();
 
     if (arg_exp_it != exp->arg_exps->items.end()) {
-        genPassedAsArgExp((*arg_exp_it).get(), (*arg_type_it).get(), os);
+        genAsType((*arg_exp_it).get(), (*arg_type_it).get(), os);
         for(arg_exp_it++, arg_type_it++;
                 arg_exp_it != exp->arg_exps->items.end();
                 arg_exp_it++, arg_type_it++) {
@@ -271,19 +288,18 @@ void PascalCodeGen::gen(const AssignStmt* assign_stmt, ostream& os) {
     }
     assign_stmt->var->generateCode(this, os);
     os << " := ";
-    genPassedAsArgExp(assign_stmt->rvalue.get(), assign_stmt->var->cached_type.get(), os);
+    genAsType(assign_stmt->rvalue.get(), assign_stmt->var->cached_type.get(), os);
     //assign_stmt->rvalue->generateCode(this, os);
     os << ";" << endl;
 }
 
 void PascalCodeGen::gen(const ReturnStmt* return_stmt, ostream& os) {
-    if (return_stmt->exp == nullptr) {
-        os << "Exit;" << endl;
-    } else {
+    if (return_stmt->exp != nullptr) {
         os << this->current_func_ident << " := ";
-        return_stmt->exp->generateCode(this, os);
-        os << ";" << endl << "Exit;" << endl;
+        genAsType(return_stmt->exp.get(), return_stmt->cached_expected_type.get(), os);
+        os << ";" << endl;
     }
+    os << "Exit;" << endl;
 }
 
 void PascalCodeGen::gen(const FuncCallStmt* func_call_stmt, ostream& os) {

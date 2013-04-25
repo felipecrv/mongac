@@ -910,10 +910,10 @@ class ReturnStmt : public Stmt {
 
     private:
         unique_ptr<Exp> exp;
+        shared_ptr<Type> cached_expected_type;
 
     public:
         ReturnStmt(Exp* exp = NULL) : exp(unique_ptr<Exp>(exp)) {}
-
         shared_ptr<Type> typeCheck(Env*, shared_ptr<Type>);
 
         string toStr() const {

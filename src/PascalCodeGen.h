@@ -36,10 +36,7 @@ private:
 
     void genAsBool(const monga::Exp* exp, std::ostream& os);
 
-    void genPassedAsArgExp(
-            const monga::Exp* exp,
-            const monga::Type* formal_arg_type,
-            std::ostream& os);
+    void genAsType(const monga::Exp*, const monga::Type*, std::ostream& os);
 
     void genBlockVariableDeclarations(const BlockStmt* block_stmt, std::ostream& os) {
         genBlockVariableDeclarations(block_stmt->block.get(), os);

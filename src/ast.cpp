@@ -625,6 +625,7 @@ shared_ptr<Type> ReturnStmt::typeCheck(Env* env, shared_ptr<Type> expected_type)
         e.emitError();
         throw e;
     }
+    this->cached_expected_type = expected_type;
     return expected_type;
 }
 
